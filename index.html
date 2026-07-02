@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GATE CSE 2027 — Prep Tracker</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root{
+  --bg:#0F1419;
+  --surface:#161D26;
+  --surface-2:#1E2733;
+  --border:#2A3441;
+  --amber:#F0A93B;
+  --teal:#45C4B0;
+  --rose:#E8615F;
+  --text:#EAEFF5;
+  --muted:#8B96A8;
+  --muted-2:#5C6678;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+  padding:28px 16px 80px;
+}
+
+.wrap{max-width:920px;margin:0 auto;}
+
+/* ---------- Header ---------- */
+header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  flex-wrap:wrap;
+  gap:16px;
+  margin-bottom:24px;
+  padding-bottom:20px;
+  border-bottom:1px solid var(--border);
+}
+.title-block .eyebrow{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  letter-spacing:0.16em;
+  color:var(--teal);
+  text-transform:uppercase;
+  margin-bottom:6px;
+}
+.title-block h1{
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  font-size:28px;
+  letter-spacing:-0.01em;
+}
+.countdown{text-align:right;font-family:'JetBrains Mono',monospace;}
+.countdown .num{font-size:36px;font-weight:700;color:var(--amber);line-height:1;}
+.countdown .lbl{font-size:11px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-top:4px;}
+.countdown input{
+  background:none;border:none;border-bottom:1px dashed var(--muted-2);
+  color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:11px;
+  margin-top:6px;padding:2px 0;width:120px;text-align:right;
+}
+.countdown input:focus{outline:none;border-bottom-color:var(--teal);color:var(--text);}
+
+/* ---------- Stat bar ---------- */
+.stats{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
+  margin-bottom:28px;
+}
+.stat-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:16px 16px;
+}
+.stat-card .val{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;}
+.stat-card .val.amber{color:var(--amber);}
+.stat-card .val.teal{color:var(--teal);}
+.stat-card .lbl{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.3;}
+.stat-card.target-card{display:flex;flex-direction:column;justify-content:space-between;}
+.target-date-row{margin-top:8px;}
+.target-date-row label{
+  display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--muted-2);
+  letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;
+}
+.target-date-row input{
+  background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:11px;padding:4px 6px;border-radius:5px;width:100%;
+}
+.target-date-row input:focus{outline:none;border-color:var(--teal);}
+
+/* ---------- Section head ---------- */
+.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.section-head h2{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;}
+
+/* ---------- Subject cards ---------- */
+.subjects{display:flex;flex-direction:column;gap:10px;}
+
+.subject-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+}
+
+.subject-head{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:16px 18px;
+  cursor:pointer;
+  user-select:none;
+}
+.subject-head .chevron{
+  font-size:12px;
+  color:var(--muted-2);
+  transition:transform .2s ease;
+  flex-shrink:0;
+  width:12px;
+}
+.subject-card.open .chevron{transform:rotate(90deg);}
+
+.subject-main{flex:1;min-width:0;}
+.subject-name-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px;}
+.subject-name-row .name{
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:600;
+  font-size:15px;
+}
+.subject-name-row .figure{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  color:var(--muted);
+  white-space:nowrap;
+}
+.subject-name-row .figure .pct{color:var(--amber);font-weight:700;}
+
+.bar-track{height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;transition:width .35s ease;}
+.bar-fill.amber{background:var(--amber);}
+.bar-fill.teal{background:var(--teal);}
+
+.modules-wrap{
+  display:none;
+  border-top:1px solid var(--border);
+  padding:6px 18px 14px;
+}
+.subject-card.open .modules-wrap{display:block;}
+
+.module-row{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:12px 0;
+  border-bottom:1px solid var(--border);
+}
+.module-row:last-child{border-bottom:none;}
+
+.module-check{
+  width:18px;height:18px;
+  border-radius:5px;
+  border:2px solid var(--muted-2);
+  background:var(--surface-2);
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:var(--bg);
+  cursor:pointer;
+  transition:all .15s ease;
+}
+.module-check:hover{border-color:var(--amber);}
+.module-check.done{background:var(--amber);border-color:var(--amber);}
+
+.module-body{flex:1;min-width:0;}
+.module-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
+.module-name{font-size:13px;color:var(--text);}
+.module-hrs{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  color:var(--muted);
+  white-space:nowrap;
+}
+.module-hrs .at-max{color:var(--amber);}
+.hrs-input{
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  width:52px;
+  padding:2px 4px;
+  border-radius:5px;
+  text-align:right;
+}
+.hrs-input:focus{outline:none;border-color:var(--teal);}
+
+.module-bar-row{display:flex;align-items:center;gap:8px;}
+.module-controls{display:flex;gap:4px;flex-shrink:0;}
+.module-controls button{
+  background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:10px;
+  padding:2px 7px;border-radius:5px;cursor:pointer;white-space:nowrap;
+}
+.module-controls button:hover:not(:disabled){border-color:var(--teal);color:var(--teal);}
+.module-controls button:disabled{opacity:0.35;cursor:not-allowed;}
+
+footer{
+  text-align:center;
+  margin-top:40px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  color:var(--muted-2);
+}
+footer button{
+  background:none;border:none;color:var(--muted-2);text-decoration:underline;
+  cursor:pointer;font-family:inherit;font-size:inherit;
+}
+footer button:hover{color:var(--rose);}
+footer button.confirming{color:var(--rose);text-decoration:none;font-weight:700;}
+.footer-row{margin-top:6px;}
+.footer-row:first-child{margin-top:0;}
+.file-note{color:var(--muted-2);}
+.file-note.linked{color:var(--teal);}
+.file-note strong{color:var(--text);font-weight:600;}
+
+@media(max-width:640px){
+  .stats{grid-template-columns:repeat(2,1fr);}
+  header{flex-direction:column;align-items:flex-start;}
+  .countdown{text-align:left;}
+  .module-row{flex-wrap:wrap;}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">Loading…</div>
+
+<script>
+const STORAGE_KEY = 'gate-tracker:state-v3';
+
+// Source: GO Classes GATE CS hour breakdown (lecture hours per module)
+const SUBJECTS_DEF = [
+  {name:'C-Programming', modules:[
+    ['Module 1',10.05],['Module 2',5.63],['Module 3',20.76]
+  ]},
+  {name:'Engineering Mathematics', modules:[
+    ['Linear Algebra',30],['Probability',28],['Calculus',9]
+  ]},
+  {name:'Theory of Computation', modules:[
+    ['Module 1',58.22],['Module 2',25.37],['Module 3',5.38],['Module 4',11.28],['Module 5',39.42],['Module 6',17.58]
+  ]},
+  {name:'Data Structures', modules:[
+    ['Linked List',7.16],['Logarithm Basics',2.18],['Asymptotic Notation/Analysis',9.58],
+    ['Stack & Queue',7.71],['Binary Trees',8],['AVL Tree',5.18],['Heap',8.85],
+    ['Hashing',4.63],['Row & Column Major in Arrays',0.77],['More Live Sessions',6.15]
+  ]},
+  {name:'Algorithms', modules:[
+    ['Why Study & Asymptotic',9.95],['Time Complexity of Recursive Prog',3.67],
+    ['Divide & Conquer (P-1)',4.95],['Divide & Conquer (P-2)',6],['Sorting Algorithms',3.47],
+    ['BFS & DFS',7],['Shortest Path Algorithms',5.1],['Minimum Spanning Tree',4.87],
+    ['More Greedy Algorithms',3.67],['Dynamic Programming',7.33],['More Dynamic Programming Algo',1.43]
+  ]},
+  {name:'Digital Logic', modules:[
+    ['Module 1',26.72],['Module 2',11.97],['Module 3',14.93],['Module 4',6.65],['Module 5',35.87]
+  ]},
+  {name:'Operating System', modules:[
+    ['Intro to OS',71.15],['File Systems',4.35],['OS PYQs Series (YouTube)',15.76]
+  ]},
+  {name:'Computer Architecture', modules:[
+    ['Basic Components & Main Memory',14],['The CPU',27.95],['Cache Memory',11.43],
+    ['Pipeline',11.45],['Floating Point Representation',4.35]
+  ]},
+  {name:'Computer Networks', modules:[
+    ['Module 1',9.87],['Module 2',28.73],['Module 3',12],['Module 4',10.93],['Module 5',14.5],['Module 6',1]
+  ]},
+  {name:'Database Management Systems', modules:[
+    ['Module 1',38],['Module 2',16.5],['Module 3',7.4],['Module 4',22],['Module 5',8],
+    ['Module 6',32],['Module 7',31.28],['Module 8',9]
+  ]},
+  {name:'Discrete Mathematics', modules:[
+    ['Module 1',22.37],['Module 2',0.57],['Module 3',32.78],['Module 4',29.67],['Module 5',43.6],
+    ['Module 6',13.45],['Module 7',19.73],['Module 8',39.92],['Module 9',46.17]
+  ]},
+  {name:'Compiler Design', modules:[
+    ['Module 1',13.15],['Module 2',11.8],['Module 3',2.33],['Module 4',19.66]
+  ]},
+];
+
+// Fixed identity per module so progress survives resets-of-data-shape and renames never happen.
+function moduleId(subjectIdx, moduleIdx){ return 'm-' + subjectIdx + '-' + moduleIdx; }
+function subjectId(subjectIdx){ return 's-' + subjectIdx; }
+
+let state = null;
+let resetArmed = false;
+
+// ---- Cloud sync via Supabase ----
+// Fill these in after creating your free Supabase project (see setup instructions).
+const SUPABASE_URL = 'https://wmfuryqweruznoutssgq.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_sDg2CBySHjVK7qoVT03Tog_q4w7e5jQ';
+const SYNC_KEY_STORAGE = 'gate-tracker:sync-key';
+
+let syncKey = localStorage.getItem(SYNC_KEY_STORAGE) || '';
+let fileWriteTimer = null; // reused as the sync debounce timer
+
+function genSyncKey(){
+  return (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+}
+
+function cloudConfigured(){
+  return !SUPABASE_URL.startsWith('YOUR_') && !SUPABASE_ANON_KEY.startsWith('YOUR_');
+}
+
+// Legacy anon keys are JWTs (start with "eyJ") and expect an Authorization: Bearer header.
+// New publishable keys (start with "sb_publishable_") are not JWTs and only need the apikey header.
+function cloudHeaders(extra){
+  const h = Object.assign({ apikey: SUPABASE_ANON_KEY }, extra || {});
+  if(SUPABASE_ANON_KEY.startsWith('eyJ')) h.Authorization = `Bearer ${SUPABASE_ANON_KEY}`;
+  return h;
+}
+
+async function cloudLoad(){
+  if(!syncKey || !cloudConfigured()) return null;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/gate_tracker?id=eq.${encodeURIComponent(syncKey)}&select=data`, {
+    headers: cloudHeaders()
+  });
+  if(!res.ok) throw new Error('cloud load failed (' + res.status + ')');
+  const rows = await res.json();
+  return (rows && rows[0] && rows[0].data) ? rows[0].data : null;
+}
+
+async function cloudSave(data){
+  if(!syncKey || !cloudConfigured()) return;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/gate_tracker`, {
+    method: 'POST',
+    headers: cloudHeaders({
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates'
+    }),
+    body: JSON.stringify({ id: syncKey, data, updated_at: new Date().toISOString() })
+  });
+  if(!res.ok) throw new Error('cloud save failed (' + res.status + ')');
+}
+
+function freshProgress(){
+  // map of moduleId -> watched hours
+  const watched = {};
+  SUBJECTS_DEF.forEach((s, si) => {
+    s.modules.forEach((m, mi) => { watched[moduleId(si,mi)] = 0; });
+  });
+  return {
+    examDate: '2027-02-07',
+    targetDate: '2026-12-01',
+    watched,
+    open: {}
+  };
+}
+
+function backfillState(){
+  SUBJECTS_DEF.forEach((s, si) => {
+    s.modules.forEach((m, mi) => {
+      const id = moduleId(si,mi);
+      if(!(id in state.watched)) state.watched[id] = 0;
+    });
+  });
+  if(!state.open) state.open = {};
+  if(!state.examDate) state.examDate = '2027-02-07';
+  if(!state.targetDate) state.targetDate = '2026-12-01';
+}
+
+async function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    state = raw ? JSON.parse(raw) : freshProgress();
+  }catch(e){
+    console.error('Load failed, starting fresh', e);
+    state = freshProgress();
+  }
+  backfillState();
+
+  // If this device already has a sync key, pull the latest from the cloud
+  // so edits made on the other device show up immediately.
+  if(syncKey){
+    try{
+      const cloud = await cloudLoad();
+      if(cloud && cloud.watched){
+        state = cloud;
+        backfillState();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } else {
+        await cloudSave(state);
+      }
+    }catch(e){
+      console.error('Initial cloud load failed', e);
+      setSaveStatus('error');
+    }
+  }
+  render();
+}
+
+// ---- Save: instant local cache, plus a debounced write to the linked file (if any) ----
+let saveStatus = 'saved'; // 'saved' | 'saving' | 'error'
+
+const SAVE_STATUS_LABEL = {
+  saved:  {text: 'saved',                              color: ''},
+  saving: {text: 'syncing…',                           color: 'var(--teal)'},
+  error:  {text: 'sync failed — check your connection', color: 'var(--rose)'},
+};
+
+function setSaveStatus(s){
+  saveStatus = s;
+  const el = document.getElementById('saveStatus');
+  if(!el) return;
+  const {text, color} = SAVE_STATUS_LABEL[s] || SAVE_STATUS_LABEL.saved;
+  el.textContent = text;
+  el.style.color = color;
+}
+
+function scheduleSave(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    console.error('Local save failed', e);
+  }
+  if(syncKey && cloudConfigured()){
+    setSaveStatus('saving');
+    clearTimeout(fileWriteTimer);
+    fileWriteTimer = setTimeout(async () => {
+      try{
+        await cloudSave(state);
+        setSaveStatus('saved');
+      }catch(e){
+        console.error('Cloud save failed', e);
+        setSaveStatus('error');
+      }
+    }, 500);
+  } else {
+    setSaveStatus('saved');
+  }
+}
+
+// ---- Set up / change / stop cross-device sync ----
+async function setupSync(){
+  if(!cloudConfigured()){
+    alert('Cloud sync is not configured yet — the SUPABASE_URL / SUPABASE_ANON_KEY placeholders in the code still need to be filled in.');
+    return;
+  }
+  const makeNew = confirm(
+    'Setting up sync on a NEW pair of devices?\n\n' +
+    'Click OK to generate a fresh sync key (do this on whichever device you are on right now — your first device).\n' +
+    'Click Cancel to paste in a sync key you already generated on another device.'
+  );
+  if(makeNew){
+    syncKey = genSyncKey();
+    localStorage.setItem(SYNC_KEY_STORAGE, syncKey);
+    try{
+      await cloudSave(state);
+      setSaveStatus('saved');
+    }catch(e){
+      console.error(e);
+      setSaveStatus('error');
+    }
+    prompt('Copy this sync key and paste it into the tracker on your OTHER device (via "set up sync" → Cancel → paste). Keep it private — anyone with this key can read/edit this tracker.', syncKey);
+  } else {
+    const k = prompt('Paste your sync key:');
+    if(!k || !k.trim()) return;
+    syncKey = k.trim();
+    localStorage.setItem(SYNC_KEY_STORAGE, syncKey);
+    try{
+      const cloud = await cloudLoad();
+      if(cloud && cloud.watched){
+        state = cloud;
+        backfillState();
+      } else {
+        await cloudSave(state);
+      }
+      setSaveStatus('saved');
+    }catch(e){
+      console.error(e);
+      alert('Could not reach the cloud with that key: ' + e.message);
+      setSaveStatus('error');
+    }
+  }
+  scheduleSave();
+  render();
+}
+
+function copySyncKey(){
+  if(!syncKey) return;
+  navigator.clipboard?.writeText(syncKey).then(
+    () => alert('Sync key copied to clipboard.'),
+    () => prompt('Copy this sync key:', syncKey)
+  );
+}
+
+function stopSync(){
+  if(!confirm('Stop syncing this device? Your data stays here locally, but it will no longer pull or push updates to the cloud.')) return;
+  syncKey = '';
+  localStorage.removeItem(SYNC_KEY_STORAGE);
+  setSaveStatus('saved');
+  render();
+}
+
+// Whenever you switch back to this tab, pull the latest from the cloud —
+// this is what lets edits made on your other device show up here without a manual click.
+async function syncFromCloudOnFocus(){
+  if(!syncKey || !cloudConfigured()) return;
+  try{
+    const cloud = await cloudLoad();
+    if(cloud && cloud.watched && JSON.stringify(cloud) !== JSON.stringify(state)){
+      state = cloud;
+      backfillState();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      render();
+    }
+  }catch(e){
+    console.error('Focus resync failed', e);
+  }
+}
+window.addEventListener('focus', syncFromCloudOnFocus);
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') syncFromCloudOnFocus();
+});
+// Light polling so a change on the other device shows up even without switching tabs.
+setInterval(() => { if(document.visibilityState === 'visible') syncFromCloudOnFocus(); }, 20000);
+
+// ---- Export / Import for moving progress between browsers on this device ----
+function exportData(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `gate-tracker-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function importData(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const incoming = JSON.parse(reader.result);
+      if(!incoming || typeof incoming !== 'object' || !incoming.watched){
+        throw new Error('File does not look like a tracker backup');
+      }
+      state = incoming;
+      backfillState();
+      scheduleSave();
+      render();
+    }catch(e){
+      alert('Could not import this file: ' + e.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function daysUntil(dateStr){
+  const target = new Date(dateStr + 'T00:00:00');
+  const now = new Date(); now.setHours(0,0,0,0);
+  return Math.ceil((target - now) / 86400000);
+}
+
+function clampPct(a,b){ if(b<=0) return 0; return Math.min(100, Math.round((a/b)*100)); }
+
+function moduleWatched(si, mi){
+  return state.watched[moduleId(si,mi)] || 0;
+}
+
+function subjectTotals(si){
+  const s = SUBJECTS_DEF[si];
+  const target = s.modules.reduce((a,m)=>a+m[1],0);
+  let watched = 0, done = 0;
+  s.modules.forEach((m, mi) => {
+    const w = moduleWatched(si, mi);
+    watched += w;
+    if(w >= m[1]) done++;
+  });
+  return {target, watched, done, total: s.modules.length};
+}
+
+function overallStats(){
+  let target=0, watched=0, doneModules=0, totalModules=0;
+  SUBJECTS_DEF.forEach((s, si) => {
+    const t = subjectTotals(si);
+    target += t.target; watched += t.watched;
+    doneModules += t.done; totalModules += t.total;
+  });
+  return {target, watched, doneModules, totalModules, pct: clampPct(watched, target)};
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
+}
+
+function syncLinkRow(){
+  if(!cloudConfigured()){
+    return `<span class="file-note">Cloud sync not configured — add your Supabase URL/key in the code.</span>`;
+  }
+  if(syncKey){
+    return `<span class="file-note linked">🔗 synced · key ${escapeHtml(syncKey.slice(0,8))}…</span> · <button id="copyKeyBtn">copy key</button> · <button id="setupSyncBtn">change</button> · <button id="stopSyncBtn">stop syncing</button>`;
+  }
+  return `<button id="setupSyncBtn">set up cross-device sync</button>`;
+}
+
+function render(){
+  const app = document.getElementById('app');
+  const st = overallStats();
+  const examDl = daysUntil(state.examDate);
+  const targetDl = daysUntil(state.targetDate);
+  const hrsRemaining = Math.max(0, st.target - st.watched);
+  const pace = (targetDl && targetDl > 0) ? (hrsRemaining / targetDl).toFixed(1) : (targetDl <= 0 ? 'overdue' : '—');
+
+  app.innerHTML = `
+    <header>
+      <div class="title-block">
+        <div class="eyebrow">Syllabus Control Panel</div>
+        <h1>GATE CSE 2027</h1>
+      </div>
+      <div class="countdown">
+        <div class="num">${examDl >= 0 ? examDl : 0}</div>
+        <div class="lbl">${examDl >= 0 ? 'days to exam' : 'exam date passed'}</div>
+        <input type="date" id="examDateInput" value="${state.examDate}">
+      </div>
+    </header>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="val amber">${st.pct}%</div>
+        <div class="lbl">Hours-weighted progress</div>
+      </div>
+      <div class="stat-card">
+        <div class="val teal">${st.watched.toFixed(1)}<span style="color:var(--muted);font-size:13px;"> / ${st.target.toFixed(0)}h</span></div>
+        <div class="lbl">Lecture hours watched</div>
+      </div>
+      <div class="stat-card">
+        <div class="val">${st.doneModules}/${st.totalModules}</div>
+        <div class="lbl">Modules completed</div>
+      </div>
+      <div class="stat-card target-card">
+        <div>
+          <div class="val ${targetDl<=0 ? '' : 'amber'}" style="${targetDl<=0?'color:var(--rose);':''}">${pace}${pace!=='—'&&pace!=='overdue'?'h':''}</div>
+          <div class="lbl">Hrs/day to hit your target</div>
+        </div>
+        <div class="target-date-row">
+          <label for="targetDateInput">Your target finish date</label>
+          <input type="date" id="targetDateInput" value="${state.targetDate}">
+        </div>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h2>Subjects</h2>
+    </div>
+
+    <div class="subjects" id="subjectGrid"></div>
+
+    <footer>
+      <div class="footer-row">
+        <span id="saveStatus" style="color:${SAVE_STATUS_LABEL[saveStatus].color}">${SAVE_STATUS_LABEL[saveStatus].text}</span>
+      </div>
+      <div class="footer-row">
+        ${syncLinkRow()}
+      </div>
+      <div class="footer-row">
+        <button id="exportBtn">manual backup (.json)</button>
+        · <button id="importBtn">import .json</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none;">
+        · <button id="resetBtn">reset all logged hours</button>
+      </div>
+    </footer>
+  `;
+
+  const grid = document.getElementById('subjectGrid');
+  SUBJECTS_DEF.forEach((s, si) => {
+    const sid = subjectId(si);
+    const t = subjectTotals(si);
+    const pct = clampPct(t.watched, t.target);
+    const isOpen = !!state.open[sid];
+
+    const card = document.createElement('div');
+    card.className = 'subject-card' + (isOpen ? ' open' : '');
+
+    const modulesHtml = s.modules.map((m, mi) => {
+      const [name, target] = m;
+      const watched = moduleWatched(si, mi);
+      const mPct = clampPct(watched, target);
+      const isDone = watched >= target;
+      const atMax = watched >= target;
+      return `
+        <div class="module-row">
+          <div class="module-check ${isDone ? 'done':''}" data-action="toggle-done" data-si="${si}" data-mi="${mi}" role="checkbox" aria-checked="${isDone}" tabindex="0">${isDone ? '✓':''}</div>
+          <div class="module-body">
+            <div class="module-top">
+              <span class="module-name">${escapeHtml(name)}</span>
+              <span class="module-hrs ${atMax?'at-max':''}">
+                <input type="number" class="hrs-input" data-action="set-hr" data-si="${si}" data-mi="${mi}" value="${watched.toFixed(2)}" min="0" max="${target}" step="0.25"> / ${target}h
+              </span>
+            </div>
+            <div class="module-bar-row">
+              <div class="bar-track" style="flex:1;"><div class="bar-fill teal" style="width:${mPct}%"></div></div>
+              <div class="module-controls">
+                <button data-action="add-hr" data-si="${si}" data-mi="${mi}" data-amt="0.5" ${atMax?'disabled':''}>+0.5</button>
+                <button data-action="add-hr" data-si="${si}" data-mi="${mi}" data-amt="1" ${atMax?'disabled':''}>+1</button>
+                <button data-action="add-hr" data-si="${si}" data-mi="${mi}" data-amt="-0.5" ${watched<=0?'disabled':''}>−0.5</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    card.innerHTML = `
+      <div class="subject-head" data-action="toggle-open" data-sid="${sid}">
+        <div class="chevron">▶</div>
+        <div class="subject-main">
+          <div class="subject-name-row">
+            <span class="name">${escapeHtml(s.name)}</span>
+            <span class="figure"><span class="pct">${pct}%</span> · ${t.watched.toFixed(1)}/${t.target.toFixed(1)}h · ${t.done}/${t.total} modules</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill amber" style="width:${pct}%"></div></div>
+        </div>
+      </div>
+      <div class="modules-wrap">
+        ${modulesHtml}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  attachHandlers();
+}
+
+function attachHandlers(){
+  document.getElementById('examDateInput').addEventListener('change', e=>{
+    state.examDate = e.target.value; scheduleSave(); render();
+  });
+  document.getElementById('targetDateInput').addEventListener('change', e=>{
+    state.targetDate = e.target.value; scheduleSave(); render();
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', exportData);
+
+  const setupSyncBtn = document.getElementById('setupSyncBtn');
+  if(setupSyncBtn) setupSyncBtn.addEventListener('click', setupSync);
+  const copyKeyBtn = document.getElementById('copyKeyBtn');
+  if(copyKeyBtn) copyKeyBtn.addEventListener('click', copySyncKey);
+  const stopSyncBtn = document.getElementById('stopSyncBtn');
+  if(stopSyncBtn) stopSyncBtn.addEventListener('click', stopSync);
+
+  const importFileInput = document.getElementById('importFile');
+  document.getElementById('importBtn').addEventListener('click', ()=>{
+    importFileInput.click();
+  });
+  importFileInput.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(file) importData(file);
+    importFileInput.value = '';
+  });
+
+  const resetBtn = document.getElementById('resetBtn');
+  resetBtn.addEventListener('click', ()=>{
+    if(!resetArmed){
+      resetArmed = true;
+      resetBtn.textContent = 'click again to confirm reset';
+      resetBtn.classList.add('confirming');
+      clearTimeout(window._resetT);
+      window._resetT = setTimeout(()=>{
+        resetArmed = false;
+        resetBtn.textContent = 'reset all logged hours';
+        resetBtn.classList.remove('confirming');
+      }, 3000);
+      return;
+    }
+    // second click: actually reset
+    resetArmed = false;
+    clearTimeout(window._resetT);
+    const keepExam = state.examDate;
+    const keepTarget = state.targetDate;
+    state = freshProgress();
+    state.examDate = keepExam;
+    state.targetDate = keepTarget;
+    scheduleSave(); render();
+  });
+
+  document.getElementById('subjectGrid').addEventListener('click', (e)=>{
+    const toggle = e.target.closest('[data-action="toggle-open"]');
+    if(toggle){
+      const sid = toggle.dataset.sid;
+      state.open[sid] = !state.open[sid];
+      scheduleSave(); render();
+      return;
+    }
+    const checkbox = e.target.closest('[data-action="toggle-done"]');
+    if(checkbox){
+      const si = Number(checkbox.dataset.si);
+      const mi = Number(checkbox.dataset.mi);
+      const target = SUBJECTS_DEF[si].modules[mi][1];
+      const id = moduleId(si, mi);
+      const isDone = (state.watched[id] || 0) >= target;
+      // Click fills the bar to 100%; click again to clear it back to 0.
+      state.watched[id] = isDone ? 0 : target;
+      scheduleSave(); render();
+      return;
+    }
+    const addBtn = e.target.closest('[data-action="add-hr"]');
+    if(addBtn){
+      if(addBtn.disabled) return;
+      const si = Number(addBtn.dataset.si);
+      const mi = Number(addBtn.dataset.mi);
+      const amt = parseFloat(addBtn.dataset.amt);
+      const target = SUBJECTS_DEF[si].modules[mi][1];
+      const id = moduleId(si, mi);
+      const current = state.watched[id] || 0;
+      const next = Math.min(target, Math.max(0, +(current + amt).toFixed(2)));
+      state.watched[id] = next;
+      scheduleSave(); render();
+      return;
+    }
+  });
+
+  // Keyboard support for the checkbox (it's a div with role="checkbox")
+  document.getElementById('subjectGrid').addEventListener('keydown', (e)=>{
+    if(e.key !== 'Enter' && e.key !== ' ') return;
+    const checkbox = e.target.closest('[data-action="toggle-done"]');
+    if(!checkbox) return;
+    e.preventDefault();
+    checkbox.click();
+  });
+
+  // Typing an exact hours value directly into a module
+  document.getElementById('subjectGrid').addEventListener('change', (e)=>{
+    const input = e.target.closest('.hrs-input');
+    if(!input) return;
+    const si = Number(input.dataset.si);
+    const mi = Number(input.dataset.mi);
+    const target = SUBJECTS_DEF[si].modules[mi][1];
+    const id = moduleId(si, mi);
+    let v = parseFloat(input.value);
+    if(isNaN(v)) v = state.watched[id] || 0;
+    v = Math.min(target, Math.max(0, +v.toFixed(2)));
+    state.watched[id] = v;
+    scheduleSave(); render();
+  });
+}
+
+load();
+</script>
+</body>
+</html>
