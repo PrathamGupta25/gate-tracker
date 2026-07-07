@@ -8,6 +8,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root{
+  color-scheme: dark;
   --bg:#0F1419;
   --surface:#161D26;
   --surface-2:#1E2733;
@@ -21,6 +22,7 @@
 }
 
 [data-theme="light"]{
+  color-scheme: light;
   --bg:#F4F6F9;
   --surface:#FFFFFF;
   --surface-2:#EAEEF3;
@@ -127,7 +129,7 @@ header{
   background:var(--surface-2);padding:3px 10px;border-radius:20px;
 }
 .wk-legend-chip i{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
-.wk-legend-chip.empty{color:var(--muted-2);background:none;padding:3px 0;}
+.wk-legend-chip.empty{color:var(--muted-2);background:none;padding:3px 0;white-space:normal;flex-basis:100%;line-height:1.4;}
 
 /* ---------- Stat bar ---------- */
 .stats{
