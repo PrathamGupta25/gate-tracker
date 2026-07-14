@@ -325,24 +325,70 @@ footer button.confirming{color:var(--rose);text-decoration:none;font-weight:700;
 .log-form-actions #cancelLogEditBtn{
   background:none;color:var(--muted);margin-left:8px;font-weight:500;
 }
-.log-list{display:flex;flex-direction:column;gap:8px;margin-bottom:28px;}
+.log-list{display:flex;flex-direction:column;gap:10px;margin-bottom:28px;}
 .log-empty{color:var(--muted-2);font-size:13px;padding:8px 2px;}
 .log-entry{
   background:var(--surface);border:1px solid var(--border);border-radius:10px;
   padding:12px 16px;
 }
-.log-entry-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+.log-entry-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px;}
 .log-date{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;}
 .log-hours{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--teal);white-space:nowrap;}
-.log-note{font-size:13px;color:var(--muted);margin-top:6px;white-space:pre-wrap;line-height:1.4;}
-.log-entry-actions{margin-top:8px;display:flex;gap:12px;}
-.log-entry-actions button{
+
+.session-list{display:flex;flex-direction:column;gap:10px;}
+.session-empty{color:var(--muted-2);font-size:12px;}
+.session-item{
+  padding:10px 12px;background:var(--surface-2);border-radius:8px;
+  border:1px solid var(--border);
+}
+.session-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px;}
+.session-time{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted-2);}
+.session-tag{
+  font-family:'JetBrains Mono',monospace;font-size:10px;
+  border:1px solid;border-radius:10px;padding:1px 8px;white-space:nowrap;
+}
+.session-note{font-size:13px;color:var(--text);white-space:pre-wrap;line-height:1.4;}
+.session-actions{margin-top:7px;display:flex;gap:12px;}
+.session-actions button{
   background:none;border:none;color:var(--muted-2);font-size:11px;
   font-family:'JetBrains Mono',monospace;cursor:pointer;text-decoration:underline;
 }
-.log-entry-actions button:hover{color:var(--teal);}
-.log-entry-actions button.deleteLogBtn:hover{color:var(--rose);}
-.log-entry-actions button.confirming{color:var(--rose);text-decoration:none;font-weight:700;}
+.session-actions button:hover{color:var(--teal);}
+.session-actions button.deleteSessionBtn:hover{color:var(--rose);}
+.session-actions button.confirming{color:var(--rose);text-decoration:none;font-weight:700;}
+
+/* ---------- Custom modal (replaces window.alert/confirm/prompt) ----------
+   Native dialogs get silently blocked in sandboxed preview frames (e.g. when
+   testing the file directly inside a chat interface rather than a real
+   top-level browser tab), so every interactive dialog in this app uses this
+   instead — it's just DOM/CSS, so it works identically everywhere. */
+.cm-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.6);
+  display:flex;align-items:center;justify-content:center;
+  z-index:1000;padding:20px;
+}
+.cm-box{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:20px;max-width:400px;width:100%;
+  box-shadow:0 12px 40px rgba(0,0,0,0.5);
+}
+.cm-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;margin-bottom:8px;}
+.cm-message{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px;white-space:pre-wrap;}
+.cm-input{
+  width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+  font-family:'Inter',sans-serif;font-size:13px;padding:9px 11px;border-radius:8px;
+  margin-bottom:16px;resize:vertical;
+}
+.cm-input:focus{outline:none;border-color:var(--teal);}
+.cm-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
+.cm-btn{
+  font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;
+  padding:8px 16px;border-radius:8px;cursor:pointer;border:none;
+}
+.cm-btn-primary{background:var(--teal);color:var(--bg);}
+.cm-btn-primary:hover{opacity:0.9;}
+.cm-btn-secondary{background:var(--surface-2);color:var(--text);border:1px solid var(--border);}
+.cm-btn-secondary:hover{border-color:var(--teal);}
 
 .log-details{margin-top:6px;}
 .log-details summary{
@@ -437,7 +483,7 @@ const SUBJECTS_DEF = [
     ['Module 6',32],['Module 7',31.28],['Module 8',9]
   ]},
   {name:'Discrete Mathematics', modules:[
-    ['Module 1',22.37],['Module 2',0.57],['Module 3',32.78],['Module 4',29.67],['Module 5',43.6],
+    ['Module 1',8.5],['Module 2',0.57],['Module 3',32.78],['Module 4',29.67],['Module 5',43.6],
     ['Module 6',13.45],['Module 7',19.73],['Module 8',39.92],['Module 9',46.17]
   ]},
   {name:'Compiler Design', modules:[
@@ -451,6 +497,81 @@ function subjectId(subjectIdx){ return 's-' + subjectIdx; }
 
 let state = null;
 let resetArmed = false;
+
+// ---- Custom modal engine (replaces window.alert/confirm/prompt everywhere) ----
+// Native dialogs get silently swallowed in sandboxed preview iframes, so
+// nothing in this app relies on them. Every call below is DOM/CSS only.
+function showModal({title='', message='', input=false, textarea=false, inputValue='', inputPlaceholder='', buttons}){
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'cm-overlay';
+    const inputHtml = input
+      ? (textarea
+          ? `<textarea class="cm-input" rows="3" placeholder="${escapeHtml(inputPlaceholder)}">${escapeHtml(inputValue)}</textarea>`
+          : `<input class="cm-input" type="text" placeholder="${escapeHtml(inputPlaceholder)}" value="${escapeHtml(inputValue)}">`)
+      : '';
+    overlay.innerHTML = `
+      <div class="cm-box">
+        ${title ? `<div class="cm-title">${escapeHtml(title)}</div>` : ''}
+        ${message ? `<div class="cm-message">${escapeHtml(message)}</div>` : ''}
+        ${inputHtml}
+        <div class="cm-actions">
+          ${buttons.map((b,i) => `<button class="cm-btn ${b.variant==='primary'?'cm-btn-primary':'cm-btn-secondary'}" data-idx="${i}">${escapeHtml(b.label)}</button>`).join('')}
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const inputEl = overlay.querySelector('.cm-input');
+    if(inputEl) inputEl.focus();
+
+    function finish(value){
+      overlay.remove();
+      document.removeEventListener('keydown', escHandler);
+      resolve(value);
+    }
+    overlay.querySelectorAll('.cm-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const chosen = buttons[Number(btn.dataset.idx)];
+        finish(chosen.returnsInput ? (inputEl ? inputEl.value : '') : chosen.value);
+      });
+    });
+    function escHandler(e){ if(e.key === 'Escape') finish(null); }
+    document.addEventListener('keydown', escHandler);
+    overlay.addEventListener('click', e => { if(e.target === overlay) finish(null); });
+    if(inputEl && !textarea){
+      inputEl.addEventListener('keydown', e => {
+        if(e.key === 'Enter'){
+          e.preventDefault();
+          overlay.querySelector('.cm-btn-primary')?.click();
+        }
+      });
+    }
+  });
+}
+function showAlert(message, title=''){
+  return showModal({ title, message, buttons: [{label:'OK', value:true, variant:'primary'}] });
+}
+function showConfirm(message, {okLabel='OK', cancelLabel='Cancel', title=''}={}){
+  return showModal({ title, message, buttons: [
+    {label: cancelLabel, value:false, variant:'secondary'},
+    {label: okLabel, value:true, variant:'primary'}
+  ]});
+}
+function showPrompt(message, defaultValue='', {okLabel='Save', cancelLabel='Cancel', title='', placeholder='', textarea=false}={}){
+  return showModal({
+    title, message, input:true, inputValue: defaultValue, inputPlaceholder: placeholder, textarea,
+    buttons: [
+      {label: cancelLabel, value:null, variant:'secondary'},
+      {label: okLabel, value:null, returnsInput:true, variant:'primary'}
+    ]
+  });
+}
+// Three-way choice (e.g. "generate new" vs "paste existing" vs cancel-via-escape/backdrop)
+function showChoice(title, message, choiceLabel, primaryLabel){
+  return showModal({ title, message, buttons: [
+    {label: choiceLabel, value:'secondary', variant:'secondary'},
+    {label: primaryLabel, value:'primary', variant:'primary'}
+  ]});
+}
 
 // ---- Cloud sync via Supabase ----
 // Fill these in after creating your free Supabase project (see setup instructions).
@@ -526,6 +647,19 @@ function backfillState(){
   if(!state.logs) state.logs = {};
   if(!state.examDate) state.examDate = '2027-02-07';
   if(!state.targetDate) state.targetDate = '2026-12-01';
+
+  // Migrate older log entries (single `note` string) to the sessions-list format.
+  Object.keys(state.logs).forEach(d => {
+    const entry = state.logs[d];
+    if(!entry.bySubject) entry.bySubject = {};
+    if(!entry.sessions){
+      entry.sessions = [];
+      if(entry.note && entry.note.trim()){
+        entry.sessions.push({ time: null, si: null, mi: null, delta: 0, note: entry.note.trim() });
+      }
+    }
+    delete entry.note;
+  });
 }
 
 async function load(){
@@ -602,15 +736,16 @@ function scheduleSave(){
 // ---- Set up / change / stop cross-device sync ----
 async function setupSync(){
   if(!cloudConfigured()){
-    alert('Cloud sync is not configured yet — the SUPABASE_URL / SUPABASE_ANON_KEY placeholders in the code still need to be filled in.');
+    await showAlert('The SUPABASE_URL / SUPABASE_ANON_KEY placeholders in the code still need to be filled in.', 'Cloud sync not configured yet');
     return;
   }
-  const makeNew = confirm(
-    'Setting up sync on a NEW pair of devices?\n\n' +
-    'Click OK to generate a fresh sync key (do this on whichever device you are on right now — your first device).\n' +
-    'Click Cancel to paste in a sync key you already generated on another device.'
+  const choice = await showChoice(
+    'Set up cross-device sync',
+    'Are you setting this up on a new pair of devices, or do you already have a sync key from another device?',
+    'I have a key', 'Generate new key'
   );
-  if(makeNew){
+  if(choice === null) return; // dismissed
+  if(choice === 'primary'){
     syncKey = genSyncKey();
     localStorage.setItem(SYNC_KEY_STORAGE, syncKey);
     try{
@@ -620,9 +755,12 @@ async function setupSync(){
       console.error(e);
       setSaveStatus('error');
     }
-    prompt('Copy this sync key and paste it into the tracker on your OTHER device (via "set up sync" → Cancel → paste). Keep it private — anyone with this key can read/edit this tracker.', syncKey);
+    await showPrompt(
+      'Copy this and paste it into the tracker on your OTHER device (via "set up sync" → "I have a key"). Keep it private — anyone with this key can read/edit this tracker.',
+      syncKey, { title:'Your sync key', okLabel:'Done', cancelLabel:'Done' }
+    );
   } else {
-    const k = prompt('Paste your sync key:');
+    const k = await showPrompt('', '', { title:'Paste your sync key', placeholder:'Sync key', okLabel:'Connect' });
     if(!k || !k.trim()) return;
     syncKey = k.trim();
     localStorage.setItem(SYNC_KEY_STORAGE, syncKey);
@@ -637,7 +775,7 @@ async function setupSync(){
       setSaveStatus('saved');
     }catch(e){
       console.error(e);
-      alert('Could not reach the cloud with that key: ' + e.message);
+      await showAlert('Could not reach the cloud with that key: ' + e.message);
       setSaveStatus('error');
     }
   }
@@ -645,16 +783,22 @@ async function setupSync(){
   render();
 }
 
-function copySyncKey(){
+async function copySyncKey(){
   if(!syncKey) return;
-  navigator.clipboard?.writeText(syncKey).then(
-    () => alert('Sync key copied to clipboard.'),
-    () => prompt('Copy this sync key:', syncKey)
-  );
+  try{
+    await navigator.clipboard.writeText(syncKey);
+    showAlert('Sync key copied to clipboard.');
+  }catch(e){
+    showPrompt('', syncKey, { title:'Copy this sync key', okLabel:'Done', cancelLabel:'Done' });
+  }
 }
 
-function stopSync(){
-  if(!confirm('Stop syncing this device? Your data stays here locally, but it will no longer pull or push updates to the cloud.')) return;
+async function stopSync(){
+  const ok = await showConfirm(
+    'Your data stays here locally, but it will no longer pull or push updates to the cloud.',
+    { title:'Stop syncing this device?', okLabel:'Stop syncing', cancelLabel:'Cancel' }
+  );
+  if(!ok) return;
   syncKey = '';
   localStorage.removeItem(SYNC_KEY_STORAGE);
   setSaveStatus('saved');
@@ -720,7 +864,7 @@ function importData(file){
       scheduleSave();
       render();
     }catch(e){
-      alert('Could not import this file: ' + e.message);
+      showAlert('Could not import this file: ' + e.message);
     }
   };
   reader.readAsText(file);
@@ -790,7 +934,16 @@ function toggleTheme(){
 applyTheme();
 
 // ---- Daily Log: per-day hours + notes, hours auto-tracked but also manually fixable for any date ----
-let editingLogDate = null; // not persisted — just tracks what the form is currently editing
+let editingLogDate = null;    // date currently loaded into the note form, or null
+let editingSessionIdx = null; // index within that date's sessions array being edited, or null (= adding new)
+
+function nowTimeStr(){
+  const d = new Date();
+  let h = d.getHours(), m = d.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if(h === 0) h = 12;
+  return `${h}:${String(m).padStart(2,'0')} ${ampm}`;
+}
 
 // Local-date string helper that avoids UTC-conversion bugs (toISOString() shifts
 // the date by a day for anyone east of UTC, e.g. India, right around midnight).
@@ -833,13 +986,31 @@ let sessionLoadDate = todayStr();
 function logHoursDelta(si, delta){
   if(!delta) return;
   const d = loggingDate;
-  if(!state.logs[d]) state.logs[d] = { hours: 0, note: '', bySubject: {} };
+  if(!state.logs[d]) state.logs[d] = { hours: 0, bySubject: {}, sessions: [] };
   if(!state.logs[d].bySubject) state.logs[d].bySubject = {};
   state.logs[d].hours = Math.max(0, +((state.logs[d].hours || 0) + delta).toFixed(2));
   const cur = state.logs[d].bySubject[si] || 0;
   const nv = +(cur + delta).toFixed(2);
   if(nv <= 0) delete state.logs[d].bySubject[si];
   else state.logs[d].bySubject[si] = nv;
+}
+
+// Fires only for positive additions (never for -0.5 corrections) right after
+// the hours have already been applied. Skippable — Cancel or an empty answer
+// just means no note gets attached, the hours themselves are unaffected either way.
+async function promptSessionNote(si, mi, delta){
+  const modName = SUBJECTS_DEF[si].modules[mi][0];
+  const note = await showPrompt(
+    `${modName} · +${delta}h`, '',
+    { title:'What did you just cover?', okLabel:'Save', cancelLabel:'Skip', placeholder:'Optional — topic or lecture name', textarea:true }
+  );
+  if(note && note.trim()){
+    const d = loggingDate;
+    if(!state.logs[d]) state.logs[d] = { hours: 0, bySubject: {}, sessions: [] };
+    if(!state.logs[d].sessions) state.logs[d].sessions = [];
+    state.logs[d].sessions.push({ time: nowTimeStr(), si, mi, delta, note: note.trim() });
+    scheduleSave(); render();
+  }
 }
 
 function last7Days(){
@@ -967,46 +1138,71 @@ function loggingDateBarHtml(){
   `;
 }
 
+function sessionHtml(d, s, idx){
+  const hasSubject = s.si !== null && s.si !== undefined && SUBJECTS_DEF[s.si] && SUBJECTS_DEF[s.si].modules[s.mi];
+  const tag = hasSubject
+    ? `<span class="session-tag" style="color:${subjectColor(s.si)};border-color:${subjectColor(s.si)}66">${escapeHtml(SUBJECTS_DEF[s.si].modules[s.mi][0])} · +${s.delta}h</span>`
+    : '';
+  return `
+    <div class="session-item">
+      <div class="session-meta">
+        ${s.time ? `<span class="session-time">${s.time}</span>` : ''}
+        ${tag}
+      </div>
+      <div class="session-note">${escapeHtml(s.note)}</div>
+      <div class="session-actions">
+        <button class="editSessionBtn" data-date="${d}" data-idx="${idx}">edit</button>
+        <button class="deleteSessionBtn" data-date="${d}" data-idx="${idx}">delete</button>
+      </div>
+    </div>`;
+}
+
 function dailyLogSectionHtml(){
-  const dates = Object.keys(state.logs).sort((a,b) => b.localeCompare(a));
+  const dates = Object.keys(state.logs)
+    .filter(d => state.logs[d].hours || (state.logs[d].sessions && state.logs[d].sessions.length))
+    .sort((a,b) => b.localeCompare(a));
   const totalHrs = dates.reduce((sum,d) => sum + (state.logs[d].hours || 0), 0);
 
   const entriesHtml = dates.map(d => {
     const e = state.logs[d];
+    const sessions = e.sessions || [];
+    const sessionsHtml = sessions.length
+      ? sessions.map((s, idx) => sessionHtml(d, s, idx)).join('')
+      : `<div class="session-empty">No notes logged for this day.</div>`;
     return `
       <div class="log-entry">
         <div class="log-entry-top">
           <span class="log-date">${formatLogDate(d)}</span>
           <span class="log-hours">${e.hours}h</span>
         </div>
-        ${e.note ? `<div class="log-note">${escapeHtml(e.note)}</div>` : ''}
-        <div class="log-entry-actions">
-          <button class="editLogBtn" data-date="${d}">${e.note ? 'edit note' : 'add note'}</button>
-          <button class="deleteLogBtn" data-date="${d}">delete</button>
-        </div>
+        <div class="session-list">${sessionsHtml}</div>
       </div>`;
   }).join('') || `<div class="log-empty">No entries yet.</div>`;
 
-  const editing = editingLogDate !== null;
-  const formDate = editing ? editingLogDate : todayStr();
-  const formNote = editing ? ((state.logs[editingLogDate] && state.logs[editingLogDate].note) || '') : '';
+  const editingSession = (editingLogDate !== null && editingSessionIdx !== null
+    && state.logs[editingLogDate] && state.logs[editingLogDate].sessions
+    && state.logs[editingLogDate].sessions[editingSessionIdx])
+    ? state.logs[editingLogDate].sessions[editingSessionIdx] : null;
+  const isEditing = !!editingSession;
+  const formDate = editingLogDate || todayStr();
+  const formNote = editingSession ? editingSession.note : '';
 
   return `
     <div class="section-head">
       <h2>Daily Log</h2>
       <span class="log-total">${totalHrs.toFixed(1)}h logged · ${dates.length} day${dates.length===1?'':'s'}</span>
     </div>
-    <div class="log-hint">Hours are tracked automatically from Subjects (use the "Logging for" switch above Subjects to backdate a forgotten or incorrect day). This box is just for jotting a note against a date.</div>
+    <div class="log-hint">Whenever you add hours in Subjects, you'll be asked what you covered — skip anytime, it's optional. Use this box to add a general note for any date, or to log something after the fact.</div>
     <div class="log-form">
       <div class="log-field">
         <label for="logDateInput">Date</label>
-        <input type="date" id="logDateInput" value="${formDate}" max="${todayStr()}">
+        <input type="date" id="logDateInput" value="${formDate}" max="${todayStr()}" ${isEditing ? 'disabled' : ''}>
       </div>
-      <label for="logNoteInput">Notes</label>
-      <textarea id="logNoteInput" rows="2" placeholder="What did you cover today?">${escapeHtml(formNote)}</textarea>
+      <label for="logNoteInput">Note</label>
+      <textarea id="logNoteInput" rows="2" placeholder="What did you cover?">${escapeHtml(formNote)}</textarea>
       <div class="log-form-actions">
-        <button id="saveLogBtn">${editing ? 'Update note' : 'Save note'}</button>
-        ${editing ? '<button id="cancelLogEditBtn">cancel</button>' : ''}
+        <button id="saveLogBtn">${isEditing ? 'Update note' : 'Add note'}</button>
+        ${isEditing ? '<button id="cancelLogEditBtn">cancel</button>' : ''}
       </div>
     </div>
     <details class="log-details">
@@ -1179,35 +1375,45 @@ function attachHandlers(){
     const dateInput = document.getElementById('logDateInput');
     const noteInput = document.getElementById('logNoteInput');
 
-    const date = dateInput.value;
-    if(!date){ alert('Pick a date first.'); return; }
     const note = noteInput.value.trim();
+    if(!note){ showAlert('Write a note first (or cancel).'); return; }
 
-    if(!state.logs[date]) state.logs[date] = { hours: 0, note: '', bySubject: {} };
-    state.logs[date].note = note;
-    editingLogDate = null;
+    if(editingLogDate !== null && editingSessionIdx !== null){
+      // Updating an existing session's text in place.
+      const sess = state.logs[editingLogDate] && state.logs[editingLogDate].sessions && state.logs[editingLogDate].sessions[editingSessionIdx];
+      if(sess) sess.note = note;
+    } else {
+      const date = dateInput.value;
+      if(!date){ showAlert('Pick a date first.'); return; }
+      if(!state.logs[date]) state.logs[date] = { hours: 0, bySubject: {}, sessions: [] };
+      if(!state.logs[date].sessions) state.logs[date].sessions = [];
+      state.logs[date].sessions.push({ time: nowTimeStr(), si: null, mi: null, delta: 0, note });
+    }
+    editingLogDate = null; editingSessionIdx = null;
     scheduleSave(); render();
   });
 
   const cancelLogEditBtn = document.getElementById('cancelLogEditBtn');
   if(cancelLogEditBtn) cancelLogEditBtn.addEventListener('click', ()=>{
-    editingLogDate = null;
+    editingLogDate = null; editingSessionIdx = null;
     render();
   });
 
   document.querySelector('.log-list').addEventListener('click', (e)=>{
-    const editBtn = e.target.closest('.editLogBtn');
+    const editBtn = e.target.closest('.editSessionBtn');
     if(editBtn){
       editingLogDate = editBtn.dataset.date;
+      editingSessionIdx = Number(editBtn.dataset.idx);
       render();
       document.getElementById('logNoteInput')?.focus();
       return;
     }
-    const delBtn = e.target.closest('.deleteLogBtn');
+    const delBtn = e.target.closest('.deleteSessionBtn');
     if(delBtn){
-      // Two-click confirm, handled entirely with direct DOM state rather than
-      // window.confirm() — more reliable across browsers/webviews and works
-      // fine one-handed on mobile.
+      // Two-click confirm. This only ever removes a single note entry — it
+      // must never touch .hours/.bySubject, since those represent real
+      // auto-tracked subject progress, not something a "delete note" action
+      // should erase.
       if(!delBtn.classList.contains('confirming')){
         delBtn.classList.add('confirming');
         delBtn.textContent = 'confirm?';
@@ -1220,8 +1426,12 @@ function attachHandlers(){
       }
       clearTimeout(delBtn._armTimer);
       const d = delBtn.dataset.date;
-      delete state.logs[d];
-      if(editingLogDate === d) editingLogDate = null;
+      const idx = Number(delBtn.dataset.idx);
+      if(state.logs[d] && state.logs[d].sessions){
+        state.logs[d].sessions.splice(idx, 1);
+        if(!state.logs[d].hours && state.logs[d].sessions.length === 0) delete state.logs[d];
+      }
+      if(editingLogDate === d && editingSessionIdx === idx){ editingLogDate = null; editingSessionIdx = null; }
       scheduleSave(); render();
       return;
     }
@@ -1291,6 +1501,7 @@ function attachHandlers(){
       const after = isDone ? 0 : target;
       state.watched[id] = after;
       logHoursDelta(si, after - before);
+      if(after - before > 0) promptSessionNote(si, mi, after - before);
       scheduleSave(); render();
       return;
     }
@@ -1306,6 +1517,7 @@ function attachHandlers(){
       const next = Math.min(target, Math.max(0, +(current + amt).toFixed(2)));
       state.watched[id] = next;
       logHoursDelta(si, next - current);
+      if(next - current > 0) promptSessionNote(si, mi, next - current);
       scheduleSave(); render();
       return;
     }
@@ -1334,6 +1546,7 @@ function attachHandlers(){
     v = Math.min(target, Math.max(0, +v.toFixed(2)));
     state.watched[id] = v;
     logHoursDelta(si, v - before);
+    if(v - before > 0) promptSessionNote(si, mi, v - before);
     scheduleSave(); render();
   });
 }
