@@ -357,6 +357,25 @@ footer button.confirming{color:var(--rose);text-decoration:none;font-weight:700;
 .session-actions button.deleteSessionBtn:hover{color:var(--rose);}
 .session-actions button.confirming{color:var(--rose);text-decoration:none;font-weight:700;}
 
+/* ---------- Edit syllabus hours (separate from the Subjects section) ---------- */
+.targets-section{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:4px 18px 4px;margin-bottom:20px;
+}
+.targets-section > summary{padding:14px 0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;cursor:pointer;}
+.targets-hint{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 14px;}
+.targets-subject{border-top:1px solid var(--border);padding:10px 0;}
+.targets-subject > summary{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;cursor:pointer;padding:4px 0;}
+.targets-modules{margin-top:10px;display:flex;flex-direction:column;gap:9px;padding-left:2px;padding-bottom:6px;}
+.target-row{display:flex;align-items:center;gap:8px;font-size:13px;}
+.target-name{flex:1;color:var(--text);}
+.target-row input.targetHoursInput{
+  width:70px;background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:12px;padding:5px 7px;border-radius:6px;text-align:right;
+}
+.target-row input.targetHoursInput:focus{outline:none;border-color:var(--teal);}
+.target-unit{color:var(--muted-2);font-family:'JetBrains Mono',monospace;font-size:11px;width:10px;}
+
 /* ---------- Custom modal (replaces window.alert/confirm/prompt) ----------
    Native dialogs get silently blocked in sandboxed preview frames (e.g. when
    testing the file directly inside a chat interface rather than a real
@@ -624,23 +643,30 @@ async function cloudSave(data){
 function freshProgress(){
   // map of moduleId -> watched hours
   const watched = {};
+  const targets = {};
   SUBJECTS_DEF.forEach((s, si) => {
-    s.modules.forEach((m, mi) => { watched[moduleId(si,mi)] = 0; });
+    s.modules.forEach((m, mi) => {
+      watched[moduleId(si,mi)] = 0;
+      targets[moduleId(si,mi)] = m[1];
+    });
   });
   return {
     examDate: '2027-02-07',
     targetDate: '2026-12-01',
     watched,
+    targets, // moduleId -> target hours (editable from the "Edit syllabus hours" section)
     open: {},
     logs: {} // 'YYYY-MM-DD' -> { hours: number, note: string }
   };
 }
 
 function backfillState(){
+  if(!state.targets) state.targets = {};
   SUBJECTS_DEF.forEach((s, si) => {
     s.modules.forEach((m, mi) => {
       const id = moduleId(si,mi);
       if(!(id in state.watched)) state.watched[id] = 0;
+      if(!(id in state.targets)) state.targets[id] = m[1];
     });
   });
   if(!state.open) state.open = {};
@@ -882,14 +908,25 @@ function moduleWatched(si, mi){
   return state.watched[moduleId(si,mi)] || 0;
 }
 
+// Target hours now live in synced state (state.targets), not just the hardcoded
+// SUBJECTS_DEF — this is what lets them be edited from the UI and sync across
+// devices. Falls back to the hardcoded default only if state.targets hasn't
+// been seeded yet for some reason (defensive, backfillState normally handles this).
+function moduleTarget(si, mi){
+  const id = moduleId(si, mi);
+  if(state.targets && id in state.targets) return state.targets[id];
+  return SUBJECTS_DEF[si].modules[mi][1];
+}
+
 function subjectTotals(si){
   const s = SUBJECTS_DEF[si];
-  const target = s.modules.reduce((a,m)=>a+m[1],0);
-  let watched = 0, done = 0;
+  let target = 0, watched = 0, done = 0;
   s.modules.forEach((m, mi) => {
+    const t = moduleTarget(si, mi);
+    target += t;
     const w = moduleWatched(si, mi);
     watched += w;
-    if(w >= m[1]) done++;
+    if(w >= t) done++;
   });
   return {target, watched, done, total: s.modules.length};
 }
@@ -963,6 +1000,38 @@ function formatLogDate(dstr){
 function subjectColor(si){
   const hue = Math.round((si * 360) / SUBJECTS_DEF.length);
   return `hsl(${hue}, 55%, 55%)`;
+}
+
+// ---- Edit syllabus hours: open/closed state is local UI state, not synced data ----
+let targetsSectionOpen = false;
+let targetsOpenSubjects = {}; // si -> bool
+
+function syllabusTargetsSectionHtml(){
+  const subjectsHtml = SUBJECTS_DEF.map((s, si) => {
+    const rows = s.modules.map((m, mi) => {
+      const name = m[0];
+      const target = moduleTarget(si, mi);
+      return `
+        <div class="target-row">
+          <span class="target-name">${escapeHtml(name)}</span>
+          <input type="number" class="targetHoursInput" data-si="${si}" data-mi="${mi}" value="${target}" min="0" step="0.01">
+          <span class="target-unit">h</span>
+        </div>`;
+    }).join('');
+    return `
+      <details class="targets-subject" data-si="${si}" ${targetsOpenSubjects[si] ? 'open' : ''}>
+        <summary>${escapeHtml(s.name)}</summary>
+        <div class="targets-modules">${rows}</div>
+      </details>`;
+  }).join('');
+
+  return `
+    <details class="targets-section" ${targetsSectionOpen ? 'open' : ''}>
+      <summary>Edit syllabus hours</summary>
+      <p class="targets-hint">Change how many hours each module is "out of" here — separate from logging your progress, which stays in the Subjects section above.</p>
+      ${subjectsHtml}
+    </details>
+  `;
 }
 
 function yesterdayStr(){
@@ -1273,6 +1342,8 @@ function render(){
 
     ${dailyLogSectionHtml()}
 
+    ${syllabusTargetsSectionHtml()}
+
     <footer>
       <div class="footer-row">
         <span id="saveStatus" style="color:${SAVE_STATUS_LABEL[saveStatus].color}">${SAVE_STATUS_LABEL[saveStatus].text}</span>
@@ -1300,7 +1371,8 @@ function render(){
     card.className = 'subject-card' + (isOpen ? ' open' : '');
 
     const modulesHtml = s.modules.map((m, mi) => {
-      const [name, target] = m;
+      const name = m[0];
+      const target = moduleTarget(si, mi);
       const watched = moduleWatched(si, mi);
       const mPct = clampPct(watched, target);
       const isDone = watched >= target;
@@ -1368,6 +1440,26 @@ function attachHandlers(){
   document.getElementById('targetDateInput').addEventListener('change', e=>{
     state.targetDate = e.target.value; scheduleSave(); render();
   });
+
+  const targetsSectionEl = document.querySelector('.targets-section');
+  if(targetsSectionEl){
+    targetsSectionEl.addEventListener('toggle', () => { targetsSectionOpen = targetsSectionEl.open; });
+    targetsSectionEl.querySelectorAll('.targets-subject').forEach(el => {
+      const si = Number(el.dataset.si);
+      el.addEventListener('toggle', () => { targetsOpenSubjects[si] = el.open; });
+    });
+    targetsSectionEl.addEventListener('change', (e) => {
+      const input = e.target.closest('.targetHoursInput');
+      if(!input) return;
+      const si = Number(input.dataset.si);
+      const mi = Number(input.dataset.mi);
+      let v = parseFloat(input.value);
+      if(isNaN(v) || v < 0) v = moduleTarget(si, mi); // invalid entry — revert rather than corrupt data
+      v = +v.toFixed(2);
+      state.targets[moduleId(si, mi)] = v;
+      scheduleSave(); render();
+    });
+  }
 
   document.getElementById('exportBtn').addEventListener('click', exportData);
 
@@ -1493,7 +1585,7 @@ function attachHandlers(){
     if(checkbox){
       const si = Number(checkbox.dataset.si);
       const mi = Number(checkbox.dataset.mi);
-      const target = SUBJECTS_DEF[si].modules[mi][1];
+      const target = moduleTarget(si, mi);
       const id = moduleId(si, mi);
       const before = state.watched[id] || 0;
       const isDone = before >= target;
@@ -1511,7 +1603,7 @@ function attachHandlers(){
       const si = Number(addBtn.dataset.si);
       const mi = Number(addBtn.dataset.mi);
       const amt = parseFloat(addBtn.dataset.amt);
-      const target = SUBJECTS_DEF[si].modules[mi][1];
+      const target = moduleTarget(si, mi);
       const id = moduleId(si, mi);
       const current = state.watched[id] || 0;
       const next = Math.min(target, Math.max(0, +(current + amt).toFixed(2)));
@@ -1538,7 +1630,7 @@ function attachHandlers(){
     if(!input) return;
     const si = Number(input.dataset.si);
     const mi = Number(input.dataset.mi);
-    const target = SUBJECTS_DEF[si].modules[mi][1];
+    const target = moduleTarget(si, mi);
     const id = moduleId(si, mi);
     const before = state.watched[id] || 0;
     let v = parseFloat(input.value);
