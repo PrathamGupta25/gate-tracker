@@ -99,6 +99,11 @@ header{
 }
 .wk-graph-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:18px;flex-wrap:wrap;gap:4px;}
 .wk-graph-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;}
+.wk-nav { display:flex; align-items:center; gap:6px; }
+.wk-nav-btn { background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; cursor:pointer; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-size:11px; font-family:'JetBrains Mono',monospace;}
+.wk-nav-btn:hover:not(:disabled) { border-color:var(--teal); color:var(--teal); }
+.wk-nav-btn:disabled { opacity:0.3; cursor:not-allowed; }
+.wk-nav-lbl { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); min-width:85px; text-align:center;}
 .wk-graph-total{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);}
 .wk-bars-wrap{position:relative;padding-top:14px;}
 .wk-bars{display:flex;justify-content:space-between;align-items:flex-end;gap:8px;height:150px;position:relative;z-index:1;}
@@ -1039,11 +1044,23 @@ function yesterdayStr(){
   return dateToStr(d);
 }
 
-// ---- Logging date switch: which date +/- actions in Subjects get attributed to ----
-// Not persisted on purpose — always starts back at "today" on a fresh load,
-// so you can never accidentally leave it stuck on a past date between sessions.
+// ---- Logging date switch & Graph offset ----
 let loggingDate = todayStr();
 let sessionLoadDate = todayStr();
+let weekOffset = 0; // 0 = this week, 1 = last week, etc.
+
+// Calculates the 7 days to show in the graph based on the current weekOffset
+function getGraphDays(){
+  const days = [];
+  const base = new Date(); base.setHours(0,0,0,0);
+  base.setDate(base.getDate() - (weekOffset * 7));
+  for(let i=6;i>=0;i--){
+    const d = new Date(base);
+    d.setDate(d.getDate()-i);
+    days.push(dateToStr(d));
+  }
+  return days;
+}
 
 // Called whenever a module's watched hours change in the Subjects section.
 // Attributes the change to `loggingDate` (today, unless the logging-date
@@ -1120,17 +1137,6 @@ async function promptSessionNote(si, mi, delta){
   }
 }
 
-function last7Days(){
-  const days = [];
-  const base = new Date(); base.setHours(0,0,0,0);
-  for(let i=6;i>=0;i--){
-    const d = new Date(base);
-    d.setDate(d.getDate()-i);
-    days.push(dateToStr(d));
-  }
-  return days;
-}
-
 // Breaks a day's total hours into colored segments, one per subject that
 // contributed that day (via the Subjects section / logging-date switch).
 function daySegments(d){
@@ -1153,7 +1159,7 @@ function daySegments(d){
 }
 
 function weeklyGraphHtml(targetPaceNum){
-  const days = last7Days();
+  const days = getGraphDays();
   const totals = days.map(d => (state.logs[d] && state.logs[d].hours) || 0);
   const max = Math.max(1, targetPaceNum || 0, ...totals);
   const today = todayStr();
@@ -1206,11 +1212,22 @@ function weeklyGraphHtml(targetPaceNum){
         <span class="wk-target-label">target ${targetPaceNum.toFixed(1)}h/day</span>
       </div>`;
   }
+  
+  let weekLabel = 'This Week';
+  if(weekOffset === 1) weekLabel = 'Last Week';
+  else if(weekOffset > 1) weekLabel = weekOffset + ' Weeks Ago';
 
   return `
     <div class="wk-graph">
       <div class="wk-graph-head">
-        <span class="wk-graph-title">This Week</span>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span class="wk-graph-title">Weekly Progress</span>
+          <div class="wk-nav">
+            <button id="prevWeekBtn" class="wk-nav-btn" title="Previous 7 days">◀</button>
+            <span class="wk-nav-lbl">${weekLabel}</span>
+            <button id="nextWeekBtn" class="wk-nav-btn" ${weekOffset===0?'disabled':''} title="Next 7 days">▶</button>
+          </div>
+        </div>
         <span class="wk-graph-total">${weekTotal.toFixed(1)}h total · ${avg.toFixed(1)}h/day avg</span>
       </div>
       <div class="wk-bars-wrap">
@@ -1226,7 +1243,7 @@ function weeklyGraphHtml(targetPaceNum){
 function weeklyGraphSectionHtml(targetPaceNum){
   return `
     <div class="section-head">
-      <h2>Weekly Progress</h2>
+      <h2>Progress</h2>
     </div>
     ${weeklyGraphHtml(targetPaceNum)}
   `;
@@ -1461,6 +1478,13 @@ function render(){
 
 function attachHandlers(){
   document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+
+  document.getElementById('prevWeekBtn')?.addEventListener('click', ()=>{
+    weekOffset++; render();
+  });
+  document.getElementById('nextWeekBtn')?.addEventListener('click', ()=>{
+    if(weekOffset > 0) { weekOffset--; render(); }
+  });
 
   document.getElementById('ldbTodayBtn').addEventListener('click', ()=>{
     loggingDate = todayStr(); render();
