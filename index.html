@@ -1054,14 +1054,52 @@ let sessionLoadDate = todayStr();
 // gap in with a grey "manual" segment, so the bar height always stays honest.
 function logHoursDelta(si, delta){
   if(!delta) return;
-  const d = loggingDate;
-  if(!state.logs[d]) state.logs[d] = { hours: 0, bySubject: {}, sessions: [] };
-  if(!state.logs[d].bySubject) state.logs[d].bySubject = {};
-  state.logs[d].hours = Math.max(0, +((state.logs[d].hours || 0) + delta).toFixed(2));
-  const cur = state.logs[d].bySubject[si] || 0;
-  const nv = +(cur + delta).toFixed(2);
-  if(nv <= 0) delete state.logs[d].bySubject[si];
-  else state.logs[d].bySubject[si] = nv;
+  
+  if (delta > 0) {
+    // Addition: Add to the currently selected loggingDate
+    const d = loggingDate;
+    if(!state.logs[d]) state.logs[d] = { hours: 0, bySubject: {}, sessions: [] };
+    if(!state.logs[d].bySubject) state.logs[d].bySubject = {};
+    
+    state.logs[d].hours = +((state.logs[d].hours || 0) + delta).toFixed(2);
+    state.logs[d].bySubject[si] = +((state.logs[d].bySubject[si] || 0) + delta).toFixed(2);
+  } else {
+    // Subtraction: Try to remove from loggingDate first, then cascade to newest logs
+    let remainingToSubtract = Math.abs(delta);
+    
+    const deductFromDate = (dateStr) => {
+      if (!remainingToSubtract || !state.logs[dateStr] || !state.logs[dateStr].bySubject || !state.logs[dateStr].bySubject[si]) return;
+      
+      const availableHere = state.logs[dateStr].bySubject[si];
+      const deduction = Math.min(availableHere, remainingToSubtract);
+      
+      // Update the subject specific hours
+      state.logs[dateStr].bySubject[si] = +(availableHere - deduction).toFixed(2);
+      if (state.logs[dateStr].bySubject[si] <= 0) delete state.logs[dateStr].bySubject[si];
+      
+      // Update the overall day hours
+      state.logs[dateStr].hours = Math.max(0, +((state.logs[dateStr].hours || 0) - deduction).toFixed(2));
+      
+      // Clean up the day entry entirely if it's completely empty
+      if (state.logs[dateStr].hours === 0 && (!state.logs[dateStr].sessions || state.logs[dateStr].sessions.length === 0)) {
+        delete state.logs[dateStr];
+      }
+      
+      remainingToSubtract = +(remainingToSubtract - deduction).toFixed(2);
+    };
+
+    // 1. Try to deduct from the currently selected date first
+    deductFromDate(loggingDate);
+
+    // 2. If there are still hours to subtract, cascade backwards through history
+    if (remainingToSubtract > 0) {
+      const sortedDates = Object.keys(state.logs).sort((a, b) => b.localeCompare(a));
+      for (const dateStr of sortedDates) {
+        if (remainingToSubtract <= 0) break;
+        deductFromDate(dateStr);
+      }
+    }
+  }
 }
 
 // Fires only for positive additions (never for -0.5 corrections) right after
