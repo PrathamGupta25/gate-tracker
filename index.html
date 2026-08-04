@@ -1547,6 +1547,19 @@ function attachHandlers(){
       if(isNaN(v) || v < 0) v = moduleTarget(si, mi); // invalid entry — revert rather than corrupt data
       v = +v.toFixed(2);
       state.targets[moduleId(si, mi)] = v;
+      
+      // STRICT PARITY ENFORCEMENT:
+      // If the user lowers the target hours BELOW the hours they have already watched,
+      // strictly trim the excess watched hours AND deduct those hours from the graph log.
+      const id = moduleId(si, mi);
+      const currentWatched = state.watched[id] || 0;
+      if (currentWatched > v) {
+        const excess = +(currentWatched - v).toFixed(2);
+        state.watched[id] = v;
+        logHoursDelta(si, -excess);
+        showAlert(`You lowered the target for ${SUBJECTS_DEF[si].modules[mi][0]} to ${v}h, but you already had ${currentWatched}h logged.\n\nTo keep your tracker strictly synced, the extra ${excess}h was automatically trimmed from your progress and deducted from your recent logs.`);
+      }
+
       scheduleSave(); render();
     });
   }
