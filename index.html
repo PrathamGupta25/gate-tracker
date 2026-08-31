@@ -286,6 +286,22 @@ header{
 .module-controls button:hover:not(:disabled){border-color:var(--teal);color:var(--teal);}
 .module-controls button:disabled{opacity:0.35;cursor:not-allowed;}
 
+/* ---------- Skipped modules ---------- */
+.module-row.skipped{opacity:0.5;}
+.module-row.skipped .module-name{text-decoration:line-through;color:var(--muted);}
+.module-row.skipped .bar-fill{background:var(--muted-2) !important;}
+.skipped-badge{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--muted-2);border:1px solid var(--border);border-radius:4px;
+  padding:1px 5px;vertical-align:middle;margin-left:6px;
+  text-decoration:none;display:inline-block;
+}
+.skip-btn{color:var(--muted-2) !important;border-color:var(--border) !important;}
+.skip-btn:hover:not(:disabled){color:var(--rose) !important;border-color:var(--rose) !important;}
+.unskip-btn{color:var(--teal) !important;border-color:var(--teal) !important;font-weight:600;}
+.unskip-btn:hover:not(:disabled){opacity:0.8;}
+
 footer{
   text-align:center;
   margin-top:40px;
@@ -668,6 +684,7 @@ function freshProgress(){
     watched,
     targets, // moduleId -> target hours (editable from the "Edit syllabus hours" section)
     open: {},
+    skipped: {}, // moduleId -> true when deferred
     logs: {} // 'YYYY-MM-DD' -> { hours: number, note: string }
   };
 }
@@ -682,6 +699,7 @@ function backfillState(){
     });
   });
   if(!state.open) state.open = {};
+  if(!state.skipped) state.skipped = {};
   if(!state.logs) state.logs = {};
   if(!state.examDate) state.examDate = '2027-02-07';
   if(!state.targetDate) state.targetDate = '2026-12-01';
@@ -930,27 +948,38 @@ function moduleTarget(si, mi){
   return SUBJECTS_DEF[si].modules[mi][1];
 }
 
+function isModuleSkipped(si, mi){
+  return !!(state.skipped && state.skipped[moduleId(si, mi)]);
+}
+
 function subjectTotals(si){
   const s = SUBJECTS_DEF[si];
-  let target = 0, watched = 0, done = 0;
+  let target = 0, watched = 0, done = 0, skippedCount = 0, activeCount = 0;
   s.modules.forEach((m, mi) => {
+    if(isModuleSkipped(si, mi)){
+      skippedCount++;
+      return; // exclude skipped modules from progress totals
+    }
+    activeCount++;
     const t = moduleTarget(si, mi);
     target += t;
     const w = moduleWatched(si, mi);
     watched += w;
     if(w >= t) done++;
   });
-  return {target, watched, done, total: s.modules.length};
+  return {target, watched, done, total: s.modules.length, active: activeCount, skipped: skippedCount};
 }
 
 function overallStats(){
-  let target=0, watched=0, doneModules=0, totalModules=0;
+  let target=0, watched=0, doneModules=0, totalModules=0, skippedModules=0;
   SUBJECTS_DEF.forEach((s, si) => {
     const t = subjectTotals(si);
     target += t.target; watched += t.watched;
-    doneModules += t.done; totalModules += t.total;
+    doneModules += t.done;
+    totalModules += t.active;
+    skippedModules += t.skipped;
   });
-  return {target, watched, doneModules, totalModules, pct: clampPct(watched, target)};
+  return {target, watched, doneModules, totalModules, skippedModules, pct: clampPct(watched, target)};
 }
 
 function escapeHtml(str){
@@ -1383,7 +1412,7 @@ function render(){
       </div>
       <div class="stat-card">
         <div class="val">${st.doneModules}/${st.totalModules}</div>
-        <div class="lbl">Modules completed</div>
+        <div class="lbl">Modules completed${st.skippedModules ? ` · <span style="color:var(--muted-2)">${st.skippedModules} skipped</span>` : ''}</div>
       </div>
       <div class="stat-card target-card">
         <div>
@@ -1447,23 +1476,32 @@ function render(){
       const isDone = watched >= target;
       const atMax = watched >= target;
       const canReduceBtn = watched > 0 && maxRedForSubject >= 0.5;
-      
+      const skipped = isModuleSkipped(si, mi);
+
       return `
-        <div class="module-row">
-          <div class="module-check ${isDone ? 'done':''}" data-action="toggle-done" data-si="${si}" data-mi="${mi}" role="checkbox" aria-checked="${isDone}" tabindex="0">${isDone ? '✓':''}</div>
+        <div class="module-row${skipped ? ' skipped' : ''}">
+          <div class="module-check ${isDone && !skipped ? 'done':''}"
+               ${skipped ? '' : `data-action="toggle-done" data-si="${si}" data-mi="${mi}" role="checkbox" aria-checked="${isDone}" tabindex="0"`}
+               style="${skipped ? 'pointer-events:none;' : ''}">${isDone && !skipped ? '✓':''}</div>
           <div class="module-body">
             <div class="module-top">
-              <span class="module-name">${escapeHtml(name)}</span>
-              <span class="module-hrs ${atMax?'at-max':''}">
-                <input type="number" class="hrs-input" data-action="set-hr" data-si="${si}" data-mi="${mi}" value="${watched.toFixed(2)}" min="0" max="${target}" step="0.25"> / ${target}h
+              <span class="module-name">${escapeHtml(name)}${skipped ? '<span class="skipped-badge">skipped</span>' : ''}</span>
+              <span class="module-hrs ${atMax && !skipped ? 'at-max' : ''}">
+                ${skipped
+                  ? `${watched.toFixed(2)} / ${target}h`
+                  : `<input type="number" class="hrs-input" data-action="set-hr" data-si="${si}" data-mi="${mi}" value="${watched.toFixed(2)}" min="0" max="${target}" step="0.25"> / ${target}h`
+                }
               </span>
             </div>
             <div class="module-bar-row">
-              <div class="bar-track" style="flex:1;"><div class="bar-fill teal" style="width:${mPct}%"></div></div>
+              <div class="bar-track" style="flex:1;"><div class="bar-fill ${skipped ? '' : 'teal'}" style="width:${mPct}%"></div></div>
               <div class="module-controls">
-                <button data-action="add-hr" data-si="${si}" data-mi="${mi}" data-amt="0.5" ${atMax?'disabled':''}>+0.5</button>
-                <button data-action="add-hr" data-si="${si}" data-mi="${mi}" data-amt="1" ${atMax?'disabled':''}>+1</button>
-                <button data-action="add-hr" data-si="${si}" data-mi="${mi}" data-amt="-0.5" ${!canReduceBtn?'disabled':''}>−0.5</button>
+                ${skipped ? '' : `
+                  <button data-action="add-hr" data-si="${si}" data-mi="${mi}" data-amt="0.5" ${atMax?'disabled':''}>+0.5</button>
+                  <button data-action="add-hr" data-si="${si}" data-mi="${mi}" data-amt="1" ${atMax?'disabled':''}>+1</button>
+                  <button data-action="add-hr" data-si="${si}" data-mi="${mi}" data-amt="-0.5" ${!canReduceBtn?'disabled':''}>−0.5</button>
+                `}
+                <button class="${skipped ? 'unskip-btn' : 'skip-btn'}" data-action="toggle-skip" data-si="${si}" data-mi="${mi}">${skipped ? 'unskip' : 'skip'}</button>
               </div>
             </div>
           </div>
@@ -1477,7 +1515,7 @@ function render(){
         <div class="subject-main">
           <div class="subject-name-row">
             <span class="name">${escapeHtml(s.name)}</span>
-            <span class="figure"><span class="pct">${pct}%</span> · ${t.watched.toFixed(1)}/${t.target.toFixed(1)}h · ${t.done}/${t.total} modules</span>
+            <span class="figure"><span class="pct">${pct}%</span> · ${t.watched.toFixed(1)}/${t.target.toFixed(1)}h · ${t.done}/${t.active} modules${t.skipped ? ` · <span style="color:var(--muted-2)">${t.skipped} skipped</span>` : ''}</span>
           </div>
           <div class="bar-track"><div class="bar-fill amber" style="width:${pct}%"></div></div>
         </div>
@@ -1704,6 +1742,22 @@ function attachHandlers(){
       scheduleSave(); render();
       return;
     }
+
+    const skipBtn = e.target.closest('[data-action="toggle-skip"]');
+    if(skipBtn){
+      const si = Number(skipBtn.dataset.si);
+      const mi = Number(skipBtn.dataset.mi);
+      const id = moduleId(si, mi);
+      if(!state.skipped) state.skipped = {};
+      if(state.skipped[id]){
+        delete state.skipped[id]; // unskip
+      } else {
+        state.skipped[id] = true; // skip
+      }
+      scheduleSave(); render();
+      return;
+    }
+
     const checkbox = e.target.closest('[data-action="toggle-done"]');
     if(checkbox){
       const si = Number(checkbox.dataset.si);
