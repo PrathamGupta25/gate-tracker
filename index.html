@@ -1508,12 +1508,21 @@ function render(){
     if(rt.active > 0 && rt.done === rt.active) return 1;
     return 0;
   }
+  function subjectPct(si){
+    const rt = subjectTotals(si);
+    return clampPct(rt.watched, rt.target);
+  }
 
   // Order subjects so completed ones sink below active ones, and fully-skipped
-  // ones sink to the very bottom — otherwise preserving original order.
+  // ones sink to the very bottom. Within the incomplete tier, subjects closest
+  // to done (highest progress %) come first.
   const subjectOrder = SUBJECTS_DEF.map((s, si) => si).sort((a, b) => {
     const at = subjectTier(a), bt = subjectTier(b);
     if(at !== bt) return at - bt;
+    if(at === 0){
+      const ap = subjectPct(a), bp = subjectPct(b);
+      if(ap !== bp) return bp - ap;
+    }
     return a - b;
   });
 
