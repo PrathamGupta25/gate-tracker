@@ -173,8 +173,16 @@ header{
 .target-date-row input:focus{outline:none;border-color:var(--teal);}
 
 /* ---------- Section head ---------- */
-.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;}
 .section-head h2{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;}
+.hide-skipped-btn{
+  background:var(--surface-2);border:1px solid var(--border);color:var(--muted);
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.02em;
+  padding:6px 11px;border-radius:20px;cursor:pointer;white-space:nowrap;
+  transition:all .15s ease;
+}
+.hide-skipped-btn:hover{border-color:var(--teal);color:var(--teal);}
+.hide-skipped-btn.active{border-color:var(--rose);color:var(--rose);background:color-mix(in srgb, var(--rose) 10%, var(--surface-2));}
 
 /* ---------- Subject cards ---------- */
 .subjects{display:flex;flex-direction:column;gap:10px;}
@@ -301,6 +309,16 @@ header{
 .skip-btn:hover:not(:disabled){color:var(--rose) !important;border-color:var(--rose) !important;}
 .unskip-btn{color:var(--teal) !important;border-color:var(--teal) !important;font-weight:600;}
 .unskip-btn:hover:not(:disabled){opacity:0.8;}
+
+/* ---------- Fully-skipped subjects ---------- */
+.subject-card.fully-skipped{opacity:0.5;filter:grayscale(0.6);}
+.subject-card.fully-skipped .subject-head{cursor:pointer;}
+.subject-card.fully-skipped .subject-name-row .name{text-decoration:line-through;color:var(--muted);}
+.subject-card.fully-skipped .bar-fill{background:var(--muted-2) !important;}
+.all-skipped-note{
+  padding:14px 0;text-align:center;color:var(--muted-2);
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+}
 
 footer{
   text-align:center;
@@ -952,13 +970,14 @@ function isModuleSkipped(si, mi){
   return !!(state.skipped && state.skipped[moduleId(si, mi)]);
 }
 
-function subjectTotals(si){
+function subjectTotals(si, includeSkipped){
   const s = SUBJECTS_DEF[si];
   let target = 0, watched = 0, done = 0, skippedCount = 0, activeCount = 0;
   s.modules.forEach((m, mi) => {
-    if(isModuleSkipped(si, mi)){
-      skippedCount++;
-      return; // exclude skipped modules from progress totals
+    const isSkipped = isModuleSkipped(si, mi);
+    if(isSkipped) skippedCount++;
+    if(isSkipped && !includeSkipped){
+      return; // exclude skipped modules from progress totals unless peeking
     }
     activeCount++;
     const t = moduleTarget(si, mi);
@@ -970,10 +989,10 @@ function subjectTotals(si){
   return {target, watched, done, total: s.modules.length, active: activeCount, skipped: skippedCount};
 }
 
-function overallStats(){
+function overallStats(includeSkipped){
   let target=0, watched=0, doneModules=0, totalModules=0, skippedModules=0;
   SUBJECTS_DEF.forEach((s, si) => {
-    const t = subjectTotals(si);
+    const t = subjectTotals(si, includeSkipped);
     target += t.target; watched += t.watched;
     doneModules += t.done;
     totalModules += t.active;
@@ -1010,6 +1029,17 @@ function toggleTheme(){
   render();
 }
 applyTheme();
+
+// ---- Peek skipped modules: skipped modules are hidden from subject lists and
+// excluded from progress calculations by default. This toggle temporarily
+// reveals them AND folds them back into the progress %/hours math, so you can
+// see what the numbers would look like if they counted. It's a session-only
+// peek, not a persisted preference — it resets to "hidden" on reload.
+let peekSkipped = false;
+function togglePeekSkipped(){
+  peekSkipped = !peekSkipped;
+  render();
+}
 
 // ---- Daily Log: per-day hours + notes, hours auto-tracked but also manually fixable for any date ----
 let editingLogDate = null;    // date currently loaded into the note form, or null
@@ -1378,7 +1408,7 @@ function dailyLogSectionHtml(){
 
 function render(){
   const app = document.getElementById('app');
-  const st = overallStats();
+  const st = overallStats(peekSkipped);
   const examDl = daysUntil(state.examDate);
   const targetDl = daysUntil(state.targetDate);
   const hrsRemaining = Math.max(0, st.target - st.watched);
@@ -1431,6 +1461,7 @@ function render(){
     ${loggingDateBarHtml()}
     <div class="section-head">
       <h2>Subjects</h2>
+      <button id="peekSkippedBtn" class="hide-skipped-btn${peekSkipped ? ' active' : ''}">${peekSkipped ? '◉ peeking skipped' : '◎ peek skipped'}</button>
     </div>
 
     <div class="subjects" id="subjectGrid"></div>
@@ -1456,19 +1487,35 @@ function render(){
   `;
 
   const grid = document.getElementById('subjectGrid');
-  SUBJECTS_DEF.forEach((s, si) => {
+
+  // Order subjects so any subject with every module skipped sinks to the bottom,
+  // keeping everything else in its original relative order.
+  const subjectOrder = SUBJECTS_DEF.map((s, si) => si).sort((a, b) => {
+    const aFull = subjectTotals(a).skipped === SUBJECTS_DEF[a].modules.length ? 1 : 0;
+    const bFull = subjectTotals(b).skipped === SUBJECTS_DEF[b].modules.length ? 1 : 0;
+    if(aFull !== bFull) return aFull - bFull;
+    return a - b;
+  });
+
+  subjectOrder.forEach((si) => {
+    const s = SUBJECTS_DEF[si];
     const sid = subjectId(si);
-    const t = subjectTotals(si);
+    const t = subjectTotals(si, peekSkipped);
     const pct = clampPct(t.watched, t.target);
     const isOpen = !!state.open[sid];
+    const fullySkipped = t.skipped === s.modules.length;
     
     // Check how many hours can actually be reduced for this subject on the active logging date
     const maxRedForSubject = (state.logs[loggingDate] && state.logs[loggingDate].bySubject && state.logs[loggingDate].bySubject[si]) || 0;
 
     const card = document.createElement('div');
-    card.className = 'subject-card' + (isOpen ? ' open' : '');
+    card.className = 'subject-card' + (isOpen ? ' open' : '') + (fullySkipped ? ' fully-skipped' : '');
 
-    const modulesHtml = s.modules.map((m, mi) => {
+    const anyVisibleModule = s.modules.some((m, mi) => !(isModuleSkipped(si, mi) && !peekSkipped));
+
+    const moduleRowsHtml = s.modules.map((m, mi) => {
+      const skipped = isModuleSkipped(si, mi);
+      if(skipped && !peekSkipped) return '';
       const name = m[0];
       const target = moduleTarget(si, mi);
       const watched = moduleWatched(si, mi);
@@ -1476,7 +1523,6 @@ function render(){
       const isDone = watched >= target;
       const atMax = watched >= target;
       const canReduceBtn = watched > 0 && maxRedForSubject >= 0.5;
-      const skipped = isModuleSkipped(si, mi);
 
       return `
         <div class="module-row${skipped ? ' skipped' : ''}">
@@ -1509,6 +1555,10 @@ function render(){
       `;
     }).join('');
 
+    const modulesHtml = anyVisibleModule
+      ? moduleRowsHtml
+      : `<div class="all-skipped-note">All modules in this subject are skipped.</div>`;
+
     card.innerHTML = `
       <div class="subject-head" data-action="toggle-open" data-sid="${sid}">
         <div class="chevron">▶</div>
@@ -1532,6 +1582,7 @@ function render(){
 
 function attachHandlers(){
   document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+  document.getElementById('peekSkippedBtn').addEventListener('click', togglePeekSkipped);
 
   document.getElementById('prevWeekBtn')?.addEventListener('click', ()=>{
     weekOffset++; render();
