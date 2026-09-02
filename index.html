@@ -16,6 +16,7 @@
   --amber:#F0A93B;
   --teal:#45C4B0;
   --rose:#E8615F;
+  --green:#5FD068;
   --text:#EAEFF5;
   --muted:#8B96A8;
   --muted-2:#5C6678;
@@ -30,6 +31,7 @@
   --amber:#C97A1A;
   --teal:#12897A;
   --rose:#C7413F;
+  --green:#1E9E4A;
   --text:#1B2430;
   --muted:#5C6678;
   --muted-2:#8B96A8;
@@ -225,11 +227,13 @@ header{
   white-space:nowrap;
 }
 .subject-name-row .figure .pct{color:var(--amber);font-weight:700;}
+.subject-name-row .figure .pct.done{color:var(--green);}
 
 .bar-track{height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden;}
-.bar-fill{height:100%;border-radius:4px;transition:width .35s ease;}
+.bar-fill{height:100%;border-radius:4px;transition:width .35s ease, background-color .2s ease;}
 .bar-fill.amber{background:var(--amber);}
 .bar-fill.teal{background:var(--teal);}
+.bar-fill.done{background:var(--green);}
 
 .modules-wrap{
   display:none;
@@ -315,6 +319,13 @@ header{
 .subject-card.fully-skipped .subject-head{cursor:pointer;}
 .subject-card.fully-skipped .subject-name-row .name{text-decoration:line-through;color:var(--muted);}
 .subject-card.fully-skipped .bar-fill{background:var(--muted-2) !important;}
+
+/* ---------- Fully-completed subjects ---------- */
+.subject-card.fully-done{opacity:0.72;}
+.subject-card.fully-done .subject-name-row .name{color:var(--muted);}
+.subject-card.fully-done .subject-name-row .name::after{
+  content:'✓';margin-left:6px;color:var(--green);font-weight:700;
+}
 .all-skipped-note{
   padding:14px 0;text-align:center;color:var(--muted-2);
   font-family:'JetBrains Mono',monospace;font-size:11px;
@@ -1488,12 +1499,21 @@ function render(){
 
   const grid = document.getElementById('subjectGrid');
 
-  // Order subjects so any subject with every module skipped sinks to the bottom,
-  // keeping everything else in its original relative order.
+  // Tier a subject for ordering/greying purposes, based on real (non-peeked) totals
+  // so peeking at skipped modules never shuffles the list:
+  //   0 = still has active work left, 1 = fully completed, 2 = fully skipped
+  function subjectTier(si){
+    const rt = subjectTotals(si);
+    if(rt.skipped === SUBJECTS_DEF[si].modules.length) return 2;
+    if(rt.active > 0 && rt.done === rt.active) return 1;
+    return 0;
+  }
+
+  // Order subjects so completed ones sink below active ones, and fully-skipped
+  // ones sink to the very bottom — otherwise preserving original order.
   const subjectOrder = SUBJECTS_DEF.map((s, si) => si).sort((a, b) => {
-    const aFull = subjectTotals(a).skipped === SUBJECTS_DEF[a].modules.length ? 1 : 0;
-    const bFull = subjectTotals(b).skipped === SUBJECTS_DEF[b].modules.length ? 1 : 0;
-    if(aFull !== bFull) return aFull - bFull;
+    const at = subjectTier(a), bt = subjectTier(b);
+    if(at !== bt) return at - bt;
     return a - b;
   });
 
@@ -1503,15 +1523,18 @@ function render(){
     const t = subjectTotals(si, peekSkipped);
     const pct = clampPct(t.watched, t.target);
     const isOpen = !!state.open[sid];
-    const fullySkipped = t.skipped === s.modules.length;
+    const tier = subjectTier(si);
+    const fullySkipped = tier === 2;
+    const subjectFullyDone = tier === 1;
     
     // Check how many hours can actually be reduced for this subject on the active logging date
     const maxRedForSubject = (state.logs[loggingDate] && state.logs[loggingDate].bySubject && state.logs[loggingDate].bySubject[si]) || 0;
 
     const card = document.createElement('div');
-    card.className = 'subject-card' + (isOpen ? ' open' : '') + (fullySkipped ? ' fully-skipped' : '');
+    card.className = 'subject-card' + (isOpen ? ' open' : '') + (fullySkipped ? ' fully-skipped' : '') + (subjectFullyDone ? ' fully-done' : '');
 
     const anyVisibleModule = s.modules.some((m, mi) => !(isModuleSkipped(si, mi) && !peekSkipped));
+    const subjectDone = t.active > 0 && t.done === t.active;
 
     const moduleRowsHtml = s.modules.map((m, mi) => {
       const skipped = isModuleSkipped(si, mi);
@@ -1540,7 +1563,7 @@ function render(){
               </span>
             </div>
             <div class="module-bar-row">
-              <div class="bar-track" style="flex:1;"><div class="bar-fill ${skipped ? '' : 'teal'}" style="width:${mPct}%"></div></div>
+              <div class="bar-track" style="flex:1;"><div class="bar-fill ${skipped ? '' : (isDone ? 'done' : 'teal')}" style="width:${mPct}%"></div></div>
               <div class="module-controls">
                 ${skipped ? '' : `
                   <button data-action="add-hr" data-si="${si}" data-mi="${mi}" data-amt="0.5" ${atMax?'disabled':''}>+0.5</button>
@@ -1565,9 +1588,9 @@ function render(){
         <div class="subject-main">
           <div class="subject-name-row">
             <span class="name">${escapeHtml(s.name)}</span>
-            <span class="figure"><span class="pct">${pct}%</span> · ${t.watched.toFixed(1)}/${t.target.toFixed(1)}h · ${t.done}/${t.active} modules${t.skipped ? ` · <span style="color:var(--muted-2)">${t.skipped} skipped</span>` : ''}</span>
+            <span class="figure"><span class="pct${subjectDone ? ' done' : ''}">${pct}%</span> · ${t.watched.toFixed(1)}/${t.target.toFixed(1)}h · ${t.done}/${t.active} modules${t.skipped ? ` · <span style="color:var(--muted-2)">${t.skipped} skipped</span>` : ''}</span>
           </div>
-          <div class="bar-track"><div class="bar-fill amber" style="width:${pct}%"></div></div>
+          <div class="bar-track"><div class="bar-fill ${subjectDone ? 'done' : 'amber'}" style="width:${pct}%"></div></div>
         </div>
       </div>
       <div class="modules-wrap">
