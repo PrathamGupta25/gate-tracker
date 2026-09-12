@@ -426,31 +426,6 @@ footer button.confirming{color:var(--rose);text-decoration:none;font-weight:700;
 .log-details[open] summary::before{transform:rotate(90deg);}
 .log-details .log-list{margin-top:10px;margin-bottom:0;}
 
-/* ---------- Logging date switch ---------- */
-.logging-date-bar{
-  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-  background:var(--surface);border:1px solid var(--border);border-radius:10px;
-  padding:10px 14px;margin-bottom:12px;
-}
-.logging-date-bar.not-today{
-  background:color-mix(in srgb, var(--amber) 12%, var(--surface));
-  border-color:var(--amber);
-}
-.ldb-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;}
-.logging-date-bar input[type="date"]{
-  background:var(--surface-2);border:1px solid var(--border);color:var(--text);
-  font-family:'JetBrains Mono',monospace;font-size:12px;padding:4px 7px;border-radius:6px;
-}
-.ldb-quick{
-  background:var(--surface-2);border:1px solid var(--border);color:var(--text);
-  font-family:'JetBrains Mono',monospace;font-size:11px;padding:4px 9px;border-radius:6px;cursor:pointer;
-}
-.ldb-quick:hover{border-color:var(--teal);}
-.ldb-quick.active{background:var(--teal);color:var(--bg);border-color:var(--teal);font-weight:600;}
-.ldb-warning{
-  font-size:12px;color:var(--amber);font-weight:600;flex-basis:100%;
-}
-
 @media(max-width:640px){
   .stats{grid-template-columns:repeat(2,1fr);}
   header{flex-direction:column;align-items:flex-start;}
@@ -1133,19 +1108,6 @@ function logHoursDelta(si, delta){
   }
 }
 
-function loggingDateBarHtml(){
-  const notToday = loggingDate !== todayStr();
-  return `
-    <div class="logging-date-bar ${notToday ? 'not-today' : ''}">
-      <span class="ldb-label">Logging for</span>
-      <button class="ldb-quick ${!notToday ? 'active' : ''}" id="ldbTodayBtn">today</button>
-      <button class="ldb-quick ${loggingDate===yesterdayStr() ? 'active' : ''}" id="ldbYesterdayBtn">yesterday</button>
-      <input type="date" id="loggingDateInput" value="${loggingDate}" max="${todayStr()}">
-      ${notToday ? `<span class="ldb-warning">⚠ Subject actions below will log to ${formatLogDate(loggingDate)}, not today — switch back to "today" when you're done fixing this.</span>` : ''}
-    </div>
-  `;
-}
-
 function sessionHtml(d, s, idx){
   const hasSubject = s.si !== null && s.si !== undefined && SUBJECTS_DEF[s.si] && SUBJECTS_DEF[s.si].modules[s.mi];
   const tag = hasSubject
@@ -1270,7 +1232,6 @@ function render(){
       </div>
     </div>
 
-    ${loggingDateBarHtml()}
     <div class="section-head">
       <h2>Subjects</h2>
       <button id="peekSkippedBtn" class="hide-skipped-btn${peekSkipped ? ' active' : ''}">${peekSkipped ? '◉ peeking skipped' : '◎ peek skipped'}</button>
@@ -1416,16 +1377,6 @@ function render(){
 function attachHandlers(){
   document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
   document.getElementById('peekSkippedBtn').addEventListener('click', togglePeekSkipped);
-
-  document.getElementById('ldbTodayBtn').addEventListener('click', ()=>{
-    loggingDate = todayStr(); render();
-  });
-  document.getElementById('ldbYesterdayBtn').addEventListener('click', ()=>{
-    loggingDate = yesterdayStr(); render();
-  });
-  document.getElementById('loggingDateInput').addEventListener('change', e=>{
-    loggingDate = e.target.value || todayStr(); render();
-  });
 
   document.getElementById('examDateInput').addEventListener('change', e=>{
     state.examDate = e.target.value; scheduleSave(); render();
