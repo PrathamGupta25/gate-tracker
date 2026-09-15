@@ -263,6 +263,18 @@ header{
 .unskip-btn{color:var(--teal) !important;border-color:var(--teal) !important;font-weight:600;}
 .unskip-btn:hover:not(:disabled){opacity:0.8;}
 
+.skipped-modules-details{margin-top:2px;}
+.skipped-modules-details summary{
+  cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted-2);
+  padding:10px 0;list-style:none;border-top:1px dashed var(--border);
+}
+.skipped-modules-details summary::marker{display:none;}
+.skipped-modules-details summary::-webkit-details-marker{display:none;}
+.skipped-modules-details summary::before{content:'▶ ';display:inline-block;transition:transform .2s ease;}
+.skipped-modules-details[open] summary::before{transform:rotate(90deg);}
+.skipped-modules-details summary:hover{color:var(--rose);}
+.skipped-modules-list .module-row:last-child{border-bottom:none;}
+
 /* ---------- Fully-skipped subjects ---------- */
 .subject-card.fully-skipped{opacity:0.5;filter:grayscale(0.6);}
 .subject-card.fully-skipped .subject-head{cursor:pointer;}
@@ -1314,8 +1326,9 @@ function render(){
     const subjectDone = t.active > 0 && t.done === t.active;
     const skippedHoursTotal = fullySkipped ? subjectTotals(si, true).target : 0;
 
-    const moduleRowsHtml = s.modules.map((m, mi) => {
+    const moduleRowHtml = (mi) => {
       const skipped = isModuleSkipped(si, mi);
+      const m = s.modules[mi];
       const name = m[0];
       const target = moduleTarget(si, mi);
       const watched = moduleWatched(si, mi);
@@ -1353,9 +1366,25 @@ function render(){
           </div>
         </div>
       `;
-    }).join('');
+    };
 
-    const modulesHtml = moduleRowsHtml;
+    const activeIndices = [];
+    const skippedIndices = [];
+    s.modules.forEach((m, mi) => (isModuleSkipped(si, mi) ? skippedIndices : activeIndices).push(mi));
+
+    const activeRowsHtml = activeIndices.map(moduleRowHtml).join('');
+    const skippedRowsHtml = skippedIndices.map(moduleRowHtml).join('');
+
+    const skippedDropdownHtml = skippedIndices.length
+      ? `
+        <details class="skipped-modules-details">
+          <summary>${skippedIndices.length} skipped module${skippedIndices.length > 1 ? 's' : ''}</summary>
+          <div class="skipped-modules-list">${skippedRowsHtml}</div>
+        </details>
+      `
+      : '';
+
+    const modulesHtml = activeRowsHtml + skippedDropdownHtml;
 
     card.innerHTML = `
       <div class="subject-head" data-action="toggle-open" data-sid="${sid}">
