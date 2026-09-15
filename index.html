@@ -275,10 +275,6 @@ header{
 .subject-card.fully-done .subject-name-row .name::after{
   content:'✓';margin-left:6px;color:var(--green);font-weight:700;
 }
-.all-skipped-note{
-  padding:14px 0;text-align:center;color:var(--muted-2);
-  font-family:'JetBrains Mono',monospace;font-size:11px;
-}
 
 footer{
   text-align:center;
@@ -965,11 +961,10 @@ function toggleTheme(){
 }
 applyTheme();
 
-// ---- Peek skipped modules: skipped modules are hidden from subject lists and
-// excluded from progress calculations by default. This toggle temporarily
-// reveals them AND folds them back into the progress %/hours math, so you can
-// see what the numbers would look like if they counted. It's a session-only
-// peek, not a persisted preference — it resets to "hidden" on reload.
+// ---- Peek skipped modules: skipped modules are always visible (greyed out)
+// but excluded from progress calculations by default. This toggle temporarily
+// folds them back into the progress %/hours math, so you can see what the
+// numbers would look like if they counted. Session-only — resets on reload.
 let peekSkipped = false;
 function togglePeekSkipped(){
   peekSkipped = !peekSkipped;
@@ -1058,6 +1053,18 @@ let sessionLoadDate = todayStr();
 // weekly graph can show a per-subject breakdown. Manual edits made from the
 // Daily Log form only touch `hours` (not bySubject) — the graph fills that
 // gap in with a grey "manual" segment, so the bar height always stays honest.
+// Total hours ever logged for a subject, across every date in history — used
+// to check whether a reduction (unticking / lowering hours) is even possible,
+// since logHoursDelta cascades backward through all past logs, not just today's.
+function totalLoggedForSubject(si){
+  let total = 0;
+  Object.keys(state.logs).forEach(d => {
+    const bySubject = state.logs[d] && state.logs[d].bySubject;
+    if(bySubject && bySubject[si]) total += bySubject[si];
+  });
+  return +total.toFixed(2);
+}
+
 function logHoursDelta(si, delta){
   if(!delta) return;
   
@@ -1234,7 +1241,7 @@ function render(){
 
     <div class="section-head">
       <h2>Subjects</h2>
-      <button id="peekSkippedBtn" class="hide-skipped-btn${peekSkipped ? ' active' : ''}">${peekSkipped ? '◉ peeking skipped' : '◎ peek skipped'}</button>
+      <button id="peekSkippedBtn" class="hide-skipped-btn${peekSkipped ? ' active' : ''}">${peekSkipped ? '◉ counting skipped' : '◎ include skipped in totals'}</button>
     </div>
 
     <div class="subjects" id="subjectGrid"></div>
@@ -1298,18 +1305,17 @@ function render(){
     const fullySkipped = tier === 2;
     const subjectFullyDone = tier === 1;
     
-    // Check how many hours can actually be reduced for this subject on the active logging date
-    const maxRedForSubject = (state.logs[loggingDate] && state.logs[loggingDate].bySubject && state.logs[loggingDate].bySubject[si]) || 0;
+    // Check how many hours can actually be reduced for this subject overall
+    const maxRedForSubject = totalLoggedForSubject(si);
 
     const card = document.createElement('div');
     card.className = 'subject-card' + (isOpen ? ' open' : '') + (fullySkipped ? ' fully-skipped' : '') + (subjectFullyDone ? ' fully-done' : '');
 
-    const anyVisibleModule = s.modules.some((m, mi) => !(isModuleSkipped(si, mi) && !peekSkipped));
     const subjectDone = t.active > 0 && t.done === t.active;
+    const skippedHoursTotal = fullySkipped ? subjectTotals(si, true).target : 0;
 
     const moduleRowsHtml = s.modules.map((m, mi) => {
       const skipped = isModuleSkipped(si, mi);
-      if(skipped && !peekSkipped) return '';
       const name = m[0];
       const target = moduleTarget(si, mi);
       const watched = moduleWatched(si, mi);
@@ -1349,9 +1355,7 @@ function render(){
       `;
     }).join('');
 
-    const modulesHtml = anyVisibleModule
-      ? moduleRowsHtml
-      : `<div class="all-skipped-note">All modules in this subject are skipped.</div>`;
+    const modulesHtml = moduleRowsHtml;
 
     card.innerHTML = `
       <div class="subject-head" data-action="toggle-open" data-sid="${sid}">
@@ -1359,7 +1363,11 @@ function render(){
         <div class="subject-main">
           <div class="subject-name-row">
             <span class="name">${escapeHtml(s.name)}</span>
-            <span class="figure"><span class="pct${subjectDone ? ' done' : ''}">${pct}%</span> · ${t.watched.toFixed(1)}/${t.target.toFixed(1)}h · ${t.done}/${t.active} modules${t.skipped ? ` · <span style="color:var(--muted-2)">${t.skipped} skipped</span>` : ''}</span>
+            <span class="figure">${
+              fullySkipped && !peekSkipped
+                ? `<span style="color:var(--muted-2)">all ${s.modules.length} skipped · ${skippedHoursTotal.toFixed(1)}h</span>`
+                : `<span class="pct${subjectDone ? ' done' : ''}">${pct}%</span> · ${t.watched.toFixed(1)}/${t.target.toFixed(1)}h · ${t.done}/${t.active} modules${t.skipped ? ` · <span style="color:var(--muted-2)">${t.skipped} skipped</span>` : ''}`
+            }</span>
           </div>
           <div class="bar-track"><div class="bar-fill ${subjectDone ? 'done' : 'amber'}" style="width:${pct}%"></div></div>
         </div>
@@ -1586,9 +1594,9 @@ function attachHandlers(){
       const after = isDone ? 0 : target;
       
       if (after < before) {
-        const maxRedForSubject = (state.logs[loggingDate] && state.logs[loggingDate].bySubject && state.logs[loggingDate].bySubject[si]) || 0;
+        const maxRedForSubject = totalLoggedForSubject(si);
         if (before - after > maxRedForSubject + 0.01) {
-          showAlert(`You cannot undo this module on ${formatLogDate(loggingDate)} because you only have ${maxRedForSubject}h logged for ${SUBJECTS_DEF[si].name} on this date.\n\nSelect the past date on the graph where you originally logged these hours to remove them.`);
+          showAlert(`You cannot undo this module — only ${maxRedForSubject}h has ever been logged for ${SUBJECTS_DEF[si].name}, which isn't enough to cover this reduction.`);
           return;
         }
       }
@@ -1610,9 +1618,9 @@ function attachHandlers(){
       const next = Math.min(target, Math.max(0, +(current + amt).toFixed(2)));
       
       if (next < current) {
-        const maxRedForSubject = (state.logs[loggingDate] && state.logs[loggingDate].bySubject && state.logs[loggingDate].bySubject[si]) || 0;
+        const maxRedForSubject = totalLoggedForSubject(si);
         if (current - next > maxRedForSubject + 0.01) {
-          showAlert(`You cannot reduce by ${(current - next).toFixed(1)}h. You only have ${maxRedForSubject}h logged for ${SUBJECTS_DEF[si].name} on ${formatLogDate(loggingDate)}.\n\nSelect the correct date on the graph first.`);
+          showAlert(`You cannot reduce by ${(current - next).toFixed(1)}h — only ${maxRedForSubject}h has ever been logged for ${SUBJECTS_DEF[si].name}.`);
           return;
         }
       }
@@ -1647,9 +1655,9 @@ function attachHandlers(){
     v = Math.min(target, Math.max(0, +v.toFixed(2)));
     
     if (v < before) {
-      const maxRedForSubject = (state.logs[loggingDate] && state.logs[loggingDate].bySubject && state.logs[loggingDate].bySubject[si]) || 0;
+      const maxRedForSubject = totalLoggedForSubject(si);
       if (before - v > maxRedForSubject + 0.01) {
-        showAlert(`You cannot reduce by ${(before - v).toFixed(2)}h on ${formatLogDate(loggingDate)} (only ${maxRedForSubject}h available for ${SUBJECTS_DEF[si].name}).\n\nSelect the past date on the graph to edit those hours.`);
+        showAlert(`You cannot reduce by ${(before - v).toFixed(2)}h — only ${maxRedForSubject}h has ever been logged for ${SUBJECTS_DEF[si].name}.`);
         input.value = before.toFixed(2);
         return;
       }
